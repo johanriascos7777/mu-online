@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+*/dist/
+**/dist/
+
+# Environment variables
+.env
+*.env
+.env.local
+
+# Expo
+.expo/
+**/.expo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Storybook build
+storybook-static/
