@@ -18,10 +18,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CharactersService } from '../characters/characters.service';
 import { MapsService } from '../maps/maps.service';
-import { CombatSession, CombatStatus } from './combat.entity';
+import { CombatSession } from './combat.entity';
 import { BudgeDragon } from '../monsters/entities/budge-dragon.entity';
 import { Goblin } from '../monsters/entities/goblin.entity';
 import { Monster } from '../monsters/entities/monster.entity';
+import { DarkKnight } from '../characters/entities/dark-knight.entity';
+import { DarkWizard } from '../characters/entities/dark-wizard.entity';
+import { Elf } from '../characters/entities/elf.entity';
 
 @Injectable()
 export class CombatService {
@@ -53,11 +56,39 @@ export class CombatService {
    *   4. Crea la CombatSession
    *   5. La guarda en el Map
    *   6. Retorna el estado inicial
+   *
+   * ─────────────────────────────────────────────────────────
+   * 🐛 ERROR QUE TUVIMOS Y CÓMO SE RESOLVIÓ:
+   * ─────────────────────────────────────────────────────────
+   * Error 1: Property 'getLevel' does not exist on type
+   *          'Promise<DarkKnight | DarkWizard | Elf>'
+   *
+   * Error 2: Argument of type 'Promise<DarkKnight | ...>'
+   *          is not assignable to parameter of type 'Character'
+   *
+   * CAUSA:
+   * En Sprint 1, findOneInstance() era síncrono — retornaba
+   * el objeto directamente desde el Map en RAM.
+   * En Sprint 2 con TypeORM, findOneInstance() es ASYNC —
+   * retorna una Promise<Character>, no el Character directo.
+   *
+   * Sin 'await', 'character' era una Promise, no un objeto.
+   * Una Promise no tiene .getLevel() ni puede pasarse como Character.
+   *
+   * SOLUCIÓN:
+   * 1. Agregar 'async' al método startCombat
+   * 2. Agregar 'await' antes de findOneInstance()
+   *
+   * Regla para recordar:
+   *   Si el Service que llamas es async → usa await
+   *   Si usas await → tu método también debe ser async
+   * ─────────────────────────────────────────────────────────
    */
-  startCombat(characterName: string, mapName: string): object {
+  async startCombat(characterName: string, mapName: string): Promise<object> {
 
-    // ① Obtiene el personaje — lanza NotFoundException si no existe
-    const character = this.charactersService.findOneInstance(characterName);
+    // ① Obtiene el personaje — 'await' porque findOneInstance es async
+    // Sin 'await' → character sería Promise<Character>, no Character
+    const character = await this.charactersService.findOneInstance(characterName);
 
     // ② Verifica que el personaje pueda entrar al mapa
     const canEnterResult = this.mapsService.canEnter(mapName, character.getLevel()) as any;
@@ -84,9 +115,7 @@ export class CombatService {
   // ── attack — ejecuta un turno de ataque básico ──────────
   attack(combatId: string): object {
     const combat = this.getCombat(combatId);
-
     const turnResult = combat.executeTurn();
-
     return {
       message: `Turn ${turnResult.turn} complete`,
       result:  turnResult,
@@ -96,9 +125,7 @@ export class CombatService {
   // ── useSkill — ejecuta un turno con habilidad ───────────
   useSkill(combatId: string, skillName: string): object {
     const combat = this.getCombat(combatId);
-
     const turnResult = combat.executeTurn(skillName);
-
     return {
       message: `${skillName} executed on Turn ${turnResult.turn}`,
       result:  turnResult,
@@ -139,7 +166,6 @@ export class CombatService {
     switch (monsterName) {
       case 'BudgeDragon': return new BudgeDragon();
       case 'Goblin':      return new Goblin();
-      // En Sprint 2 agregaremos más monstruos aquí
       default:            return new BudgeDragon(); // fallback
     }
   }

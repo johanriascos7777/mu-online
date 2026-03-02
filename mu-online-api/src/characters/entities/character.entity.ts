@@ -1,9 +1,46 @@
 /*
 Primer concepto POO: Clases y Encapsulamiento
-Empezamos con la clase base Character:
++ TypeORM Sprint 2: mapeo de clase POO a tabla en PostgreSQL
 */
 
 // src/characters/entities/character.entity.ts
+
+// ─── NUEVOS IMPORTS DE TYPEORM ────────────────────────────────────────────────
+// Estos decoradores le dicen a TypeORM cómo mapear esta clase a PostgreSQL.
+// Sin ellos, TypeORM ignora la clase completamente.
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    CreateDateColumn,
+    UpdateDateColumn,
+    TableInheritance,
+} from 'typeorm';
+
+// ============================================================
+// 📖 ¿QUÉ HACEN LOS DECORADORES DE TYPEORM?
+// ============================================================
+//
+// @Entity('characters')
+//   → "esta clase ES una tabla en la DB llamada 'characters'"
+//
+// @TableInheritance({ column: { type: 'varchar', name: 'type' } })
+//   → Single Table Inheritance: una sola tabla para DarkKnight,
+//     DarkWizard y Elf. La columna 'type' discrimina cuál es cuál.
+//     Sin este decorador → TypeORM no sabe cómo manejar @ChildEntity()
+//
+// @PrimaryGeneratedColumn()
+//   → ID autoincremental (1, 2, 3...)
+//   → Equivalente Django: id = models.AutoField(primary_key=True)
+//
+// @Column()
+//   → Cada propiedad decorada = columna en la tabla
+//   → string → VARCHAR, number → INTEGER
+//
+// @CreateDateColumn() / @UpdateDateColumn()
+//   → TypeORM las gestiona automáticamente
+//   → Equivalente Django: auto_now_add=True / auto_now=True
+// ============================================================
 
 export enum CharacterClass {
     DARK_KNIGHT     = 'DarkKnight',
@@ -13,6 +50,8 @@ export enum CharacterClass {
     DARK_LORD       = 'DarkLord',
 }
 
+@Entity('characters')
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export abstract class Character {
 
     // ─── ENCAPSULAMIENTO ──────────────────────────────────────────────────
@@ -24,30 +63,72 @@ export abstract class Character {
     //   Usa 'private' cuando NADIE más deba tocar la propiedad directamente
     //   Usa 'protected' cuando las clases hijas necesiten leerla o modificarla
     //   Usa getters públicos para dar acceso controlado desde afuera
-    private id: number;
-    protected name: string;
-    protected level: number;
-    protected experience: number;
-    protected health: number;
-    protected maxHealth: number;
-    protected mana: number;
-    protected maxMana: number;
-    protected strength: number;
-    protected agility: number;
-    protected vitality: number;
-    protected energy: number;
-    protected characterClass: CharacterClass;
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    // { unique: true } → no puede haber dos personajes con el mismo nombre
+    @Column({ unique: true })
+    name: string;
+
+    // { type: 'enum' } → TypeORM crea un tipo ENUM en PostgreSQL
+    @Column({ type: 'enum', enum: CharacterClass })
+    characterClass: CharacterClass;
+
+    @Column({ default: 1 })
+    level: number;
+
+    @Column({ default: 0 })
+    experience: number;
+
+    @Column({ default: 0 })
+    health: number;
+
+    @Column({ default: 0 })
+    maxHealth: number;
+
+    @Column({ default: 0 })
+    mana: number;
+
+    @Column({ default: 0 })
+    maxMana: number;
+
+    @Column({ default: 0 })
+    strength: number;
+
+    @Column({ default: 0 })
+    agility: number;
+
+    @Column({ default: 0 })
+    vitality: number;
+
+    @Column({ default: 0 })
+    energy: number;
+
+    // TypeORM gestiona estos timestamps automáticamente
+    @CreateDateColumn()
+    createdAt: Date;
+
+    @UpdateDateColumn()
+    updatedAt: Date;
 
     // ─── CONSTRUCTOR ──────────────────────────────────────────────────────
     // Se ejecuta al crear una instancia: new DarkKnight('Johan')
     // El constructor de Character inicializa lo COMÚN a todos los personajes.
     // Lo específico (stats) lo delega a initializeStats() — método abstracto.
-    constructor(name: string, characterClass: CharacterClass) {
-        this.name            = name;
-        this.characterClass  = characterClass;
-        this.level           = 1;
-        this.experience      = 0;
-        this.initializeStats(); // cada clase hija lo implementa diferente
+    //
+    // 🐛 GOTCHA TYPEORM: parámetros opcionales con '?'
+    // TypeORM necesita crear instancias VACÍAS internamente para hidratar
+    // objetos desde la DB. Si el constructor exige parámetros obligatorios,
+    // TypeORM no puede crear esa instancia vacía y lanza error.
+    // Solución: name? y characterClass? con '?' + if guard.
+    constructor(name?: string, characterClass?: CharacterClass) {
+        if (name && characterClass) {
+            this.name           = name;
+            this.characterClass = characterClass;
+            this.level          = 1;
+            this.experience     = 0;
+            this.initializeStats(); // cada clase hija lo implementa diferente
+        }
     }
 
     // ─── MÉTODOS ABSTRACTOS ───────────────────────────────────────────────
@@ -65,10 +146,6 @@ export abstract class Character {
     protected abstract onLevelUp(): void;
 
     // ─── GETTERS: acceso controlado a propiedades ─────────────────────────
-    // ¿Por qué getters y no propiedades public?
-    //   Con getters podemos agregar lógica antes de retornar.
-    //   Con public la propiedad queda expuesta y cualquiera puede modificarla.
-    //   Principio de encapsulamiento: controla el acceso, no lo expongas todo.
     getId(): number              { return this.id; }
     getName(): string            { return this.name; }
     getLevel(): number           { return this.level; }
@@ -77,9 +154,6 @@ export abstract class Character {
     getCharacterClass(): CharacterClass { return this.characterClass; }
 
     // ── Getters adicionales para CombatSession ────────────────────────────
-    // CombatSession NO es hija de Character — no puede acceder a 'protected'.
-    // Necesita estos getters públicos para leer los stats durante el combate.
-    // Sin ellos → error "Property 'getMaxHealth' does not exist on type Character"
     getMaxHealth(): number { return this.maxHealth; }
     getMaxMana(): number   { return this.maxMana; }
     getStrength(): number  { return this.strength; }
@@ -88,66 +162,48 @@ export abstract class Character {
     getEnergy(): number    { return this.energy; }
 
     // ─── MÉTODOS COMUNES A TODOS LOS PERSONAJES ───────────────────────────
-    // Estos métodos son iguales para DarkKnight, DarkWizard y Elf.
-    // Por eso viven en Character — evitamos repetir código en cada clase hija.
-    // Principio DRY: Don't Repeat Yourself.
-
     gainExperience(amount: number): string {
         this.experience += amount;
         const expToNextLevel = this.calculateExpToNextLevel();
-
         if (this.experience >= expToNextLevel) {
             return this.levelUp();
         }
-
         return `${this.name} gained ${amount} EXP. (${this.experience}/${expToNextLevel})`;
     }
 
-    // 'private' porque es un detalle interno del cálculo de nivel.
-    // Nadie fuera de Character necesita llamar este método directamente.
     private calculateExpToNextLevel(): number {
-        // Fórmula clásica de MU Online
         return Math.floor(Math.pow(this.level, 2) * 1000);
     }
 
     private levelUp(): string {
         this.level++;
         this.experience = 0;
-        // Hook para que cada clase hija añada sus propios stats al subir nivel
-        // DarkKnight sube strength+7, DarkWizard sube energy+10, etc.
         this.onLevelUp();
         return `🎉 ${this.name} reached Level ${this.level}!`;
     }
 
-    // takeDamage retorna string — el mensaje se usa en el log del combate
     takeDamage(damage: number): string {
         this.health = Math.max(0, this.health - damage);
-
         if (this.health === 0) {
             return `💀 ${this.name} has been defeated!`;
         }
-
         return `${this.name} took ${damage} damage. HP: ${this.health}/${this.maxHealth}`;
     }
 
     heal(amount: number): string {
         const previousHealth = this.health;
-        // Math.min evita que HP supere el máximo
         this.health = Math.min(this.maxHealth, this.health + amount);
         const healed = this.health - previousHealth;
         return `💚 ${this.name} recovered ${healed} HP. HP: ${this.health}/${this.maxHealth}`;
     }
 
-    // Usado por CombatSession para verificar si el personaje sigue vivo
     isAlive(): boolean {
         return this.health > 0;
     }
 
-    // ─── toJSON — serialización para respuestas HTTP ──────────────────────
-    // Convierte el objeto POO a un objeto plano para retornar como JSON.
-    // En Sprint 2 con TypeORM esto se manejará automáticamente.
     toJSON() {
         return {
+            id:         this.id,
             name:       this.name,
             class:      this.characterClass,
             level:      this.level,
@@ -160,6 +216,7 @@ export abstract class Character {
                 vitality: this.vitality,
                 energy:   this.energy,
             },
+            createdAt: this.createdAt,
         };
     }
 }

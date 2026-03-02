@@ -16,25 +16,27 @@ export class CharactersController {
 
     // POST /characters
     @Post()
-    create(@Body() body: { name: string; characterClass: CharacterClass }) {
+    async create(@Body() body: { name: string; characterClass: CharacterClass }) {
         return this.charactersService.createCharacter(body.name, body.characterClass);
     }
 
     // GET /characters
     @Get()
-    findAll() {
+    async findAll() {
         return this.charactersService.findAll();
     }
 
     // GET /characters/:name
     @Get(':name')
-    findOne(@Param('name') name: string) {
-        return this.charactersService.findOne(name).toJSON();
+    async findOne(@Param('name') name: string) {
+        // ✅ async/await — findOne ya retorna object, no necesita .toJSON()
+        // El Service es async → el Controller también debe ser async
+        return this.charactersService.findOne(name);
     }
 
     // POST /characters/:name/exp
     @Post(':name/exp')
-    gainExp(@Param('name') name: string, @Body() body: { amount: number }) {
-        return { message: this.charactersService.gainExp(name, body.amount) };
+    async gainExp(@Param('name') name: string, @Body() body: { amount: number }) {
+        return this.charactersService.gainExp(name, body.amount);
     }
 }
