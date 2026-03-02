@@ -1,8 +1,39 @@
+# Encender Servidor
+cd /server/mu-online-api
+npm run start:dev
+
 # 🏰 MU Online API — NestJS + TypeScript
 
 > Backend del proyecto MU Online. Aprende POO, inyección de dependencias e interfaces mientras construyes el servidor del juego.
 
 ---
+
+### Lo que ya dominarás al terminar este proyecto:
+
+**POO completo:**
+- ✅ Clases y encapsulamiento (`private` / `protected` / `public`)
+- ✅ Herencia (`extends`, `super`, `override`)
+- ✅ Clases abstractas (`abstract class`, `abstract methods`)
+- ✅ Interfaces (`implements`, contracts)
+- ✅ Polimorfismo (mismo método, comportamiento diferente)
+
+**Patrones que Java también usa:**
+- ✅ Repository pattern (TypeORM → Spring Data JPA)
+- ✅ Dependency Injection (NestJS DI → Spring `@Autowired`)
+- ✅ Decoradores/Anotaciones (`@Entity` → `@Entity`, `@Column` → `@Column`)
+- ✅ Módulos (NestJS modules → Spring `@Component`, `@Service`)
+
+**La transición TypeScript → Java será natural:**
+
+| TypeScript / NestJS | Java / Spring Boot |
+| :--- | :--- |
+| `@Entity()` | `@Entity` |
+| `@Column()` | `@Column` |
+| `@Injectable()` | `@Service` |
+| `@InjectRepository()` | `@Autowired` |
+| `async/await` | `CompletableFuture` |
+| `interface` | `interface` |
+| `abstract class` | `abstract class` |
 
 ## 1. Instalación
 
@@ -171,3 +202,6 @@ POST /combat/:id/skill
   → Consume MP, calcula daño
   → El monstruo contraataca
 ```
+
+
+
