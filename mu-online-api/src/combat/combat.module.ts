@@ -1,26 +1,22 @@
-// ============================================================
-// ⚔️ COMBAT MODULE
-// ============================================================
-//
-// CombatModule importa CharactersModule y MapsModule porque
-// CombatService necesita CharactersService y MapsService.
-//
-// Para que funcione la inyección, los módulos de origen
-// deben tener 'exports: [SuServicio]' — ya los configuramos así.
-//
-// Sin 'imports' aquí → NestJS no encuentra las dependencias
-// → Error: "Nest can't resolve dependencies of CombatService"
-// ============================================================
+// src/combat/combat.module.ts
 
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CombatController } from './combat.controller';
 import { CombatService } from './combat.service';
+import { CombatSession } from './combat.entity';
+import { Monster } from '../monsters/entities/monster.entity';
 import { CharactersModule } from '../characters/characters.module';
 import { MapsModule } from '../maps/maps.module';
 
 @Module({
-  imports:     [CharactersModule, MapsModule], // necesarios para DI
-  controllers: [CombatController],
-  providers:   [CombatService],
+    imports: [
+        // ← Monster agregado para @InjectRepository(Monster)
+        TypeOrmModule.forFeature([CombatSession, Monster]),
+        CharactersModule,
+        MapsModule,
+    ],
+    controllers: [CombatController],
+    providers:   [CombatService],
 })
 export class CombatModule {}

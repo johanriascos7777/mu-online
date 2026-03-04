@@ -1,208 +1,193 @@
-// ============================================================
-// ⚔️ COMBAT ENTITY — Estado de un combate
-// ============================================================
-//
-// CombatSession representa UNA batalla en curso.
-// Guarda el estado completo: quién pelea, cuántos turnos,
-// el log de mensajes y si el combate terminó.
-//
-// En Sprint 2 con TypeORM esto se persistirá en DB.
-// Por ahora vive en el Map del CombatService.
-//
-// ¿Por qué no es abstracta?
-// Porque todos los combates tienen la misma estructura —
-// solo cambian los participantes y el log.
-// ============================================================
+// src/combat/combat.entity.ts
 
+import {
+    Entity,
+    PrimaryColumn,
+    Column,
+    ManyToOne,
+    CreateDateColumn,
+    UpdateDateColumn,
+    JoinColumn,
+} from 'typeorm';
 import { Character } from '../characters/entities/character.entity';
 import { Monster } from '../monsters/entities/monster.entity';
 
-// ── Estado del combate ───────────────────────────────────────
 export enum CombatStatus {
-  ACTIVE     = 'Active',
-  VICTORY    = 'Victory',    // el personaje ganó
-  DEFEAT     = 'Defeat',     // el personaje perdió
-  FLED       = 'Fled',       // el personaje huyó
+    ACTIVE  = 'Active',
+    VICTORY = 'Victory',
+    DEFEAT  = 'Defeat',
+    FLED    = 'Fled',
 }
 
-// ── Resultado de un turno ────────────────────────────────────
-/**
- * Cada turno retorna este objeto con:
- *   - Los mensajes de lo que pasó (log)
- *   - El estado actual del combate
- *   - Si el combate terminó y por qué
- */
 export interface TurnResult {
-  turn:           number;
-  log:            string[];   // mensajes del turno
-  status:         CombatStatus;
-  characterHp:    string;     // "390/500"
-  characterMp:    string;     // "90/200"
-  monsterHp:      string;     // "20/50"
-  expGained?:     number;     // solo si hay victoria
+    turn:        number;
+    log:         string[];
+    status:      CombatStatus;
+    characterHp: string;
+    characterMp: string;
+    monsterHp:   string;
+    expGained?:  number;
 }
 
-// ============================================================
-// CLASE CombatSession
-// ============================================================
+@Entity('combats')
 export class CombatSession {
 
-  readonly id: string;
-  readonly characterName: string;
-  readonly mapName: string;
+    @PrimaryColumn()
+    id: string;
 
-  // Referencias a los objetos POO reales
-  // Gracias a esto podemos llamar character.takeDamage(),
-  // monster.attack(), etc. directamente
-  private character: Character;
-  private monster: Monster;
+    @Column({ type: 'enum', enum: CombatStatus, default: CombatStatus.ACTIVE })
+    status: CombatStatus;
 
-  private turn: number;
-  private status: CombatStatus;
-  private fullLog: string[]; // log completo de toda la batalla
+    @Column({ default: 0 })
+    turn: number;
 
-  constructor(
-    character: Character,
-    monster: Monster,
-    mapName: string,
-  ) {
-    this.id            = `combat-${Date.now()}`;
-    this.character     = character;
-    this.monster       = monster;
-    this.characterName = character.getName();
-    this.mapName       = mapName;
-    this.turn          = 0;
-    this.status        = CombatStatus.ACTIVE;
-    this.fullLog       = [];
-  }
+    @Column()
+    mapName: string;
 
-  // ── Getters ───────────────────────────────────────────────
-  getStatus(): CombatStatus   { return this.status; }
-  getTurn(): number           { return this.turn; }
-  isActive(): boolean         { return this.status === CombatStatus.ACTIVE; }
+    // ── FK al personaje real en DB ────────────────────────
+    @ManyToOne(() => Character, { eager: true })
+    @JoinColumn({ name: 'characterId' })
+    character: Character;
 
-  // ── executeTurn — el corazón del sistema de combate ──────
-  /**
-   * Ejecuta UN turno completo:
-   *   1. El personaje ataca al monstruo
-   *   2. Si el monstruo sigue vivo → contraataca
-   *   3. Verifica si alguien murió
-   *   4. Retorna el TurnResult
-   *
-   * 'skillName' es opcional — si no se pasa, ataque básico
-   */
-  executeTurn(skillName?: string): TurnResult {
-    // Verifica que el combate siga activo
-    if (!this.isActive()) {
-      return this.buildTurnResult([`Combat is already ${this.status}`]);
+    // ── FK al monstruo real en DB ─────────────────────────
+    @ManyToOne(() => Monster, { eager: true })
+    @JoinColumn({ name: 'monsterId' })
+    monster: Monster;
+
+    // ── HP del monstruo en este combate ───────────────────
+    // ¿Por qué esta columna extra?
+    //
+    // El monstruo en DB tiene HP=50 siempre (es el template).
+    // Cada combate necesita su PROPIO HP que va bajando turno a turno.
+    // Si modificáramos monster.health directamente, afectaríamos
+    // el registro original — todos los combates futuros empezarían
+    // con el HP dañado.
+    //
+    // Solución: guardamos el HP del combate aquí en 'combats'
+    // y usamos monster solo para leer sus stats base (attack, defense).
+    @Column({ default: 0 })
+    monsterCurrentHp: number;
+
+    @Column({ type: 'text', default: '[]' })
+    log: string;
+
+    @CreateDateColumn()
+    createdAt: Date;
+
+    @UpdateDateColumn()
+    updatedAt: Date;
+
+    constructor(character?: Character, monster?: Monster, mapName?: string) {
+        if (character && monster && mapName) {
+            this.id               = `combat-${Date.now()}`;
+            this.character        = character;
+            this.monster          = monster;
+            this.mapName          = mapName;
+            this.status           = CombatStatus.ACTIVE;
+            this.turn             = 0;
+            this.log              = '[]';
+            // HP inicial del monstruo tomado de su maxHealth
+            this.monsterCurrentHp = monster.getMaxHealth();
+        }
     }
 
-    this.turn++;
-    const turnLog: string[] = [];
+    isActive(): boolean { return this.status === CombatStatus.ACTIVE; }
+    getStatus(): string { return this.status; }
 
-    // ── FASE 1: El personaje ataca ──────────────────────────
-    const characterAttackResult = this.characterAttacks(skillName, turnLog);
-
-    // Si el monstruo murió → victoria
-    if (!this.monster.isAlive()) {
-      return this.handleVictory(turnLog);
+    private getLog(): string[] {
+        try { return JSON.parse(this.log); } catch { return []; }
     }
 
-    // ── FASE 2: El monstruo contraataca ────────────────────
-    this.monsterAttacks(turnLog);
-
-    // Si el personaje murió → derrota
-    if (!this.character.isAlive()) {
-      return this.handleDefeat(turnLog);
+    private addLog(message: string): void {
+        const logs = this.getLog();
+        logs.push(message);
+        this.log = JSON.stringify(logs);
     }
 
-    // ── FASE 3: El turno terminó sin muerte ─────────────────
-    this.fullLog.push(...turnLog);
-    return this.buildTurnResult(turnLog);
-  }
+    executeTurn(skillName?: string): TurnResult {
+        this.turn++;
+        const turnLog: string[] = [];
 
-  // ── characterAttacks — lógica de ataque del personaje ────
-  private characterAttacks(skillName: string | undefined, log: string[]): void {
-    // Por ahora calculamos daño base desde strength
-    // En Sprint 2 esto usará los métodos de habilidad específicos
-    const baseDamage = this.character.getStrength() * 2 + this.character.getLevel() * 5;
+        // ① Personaje ataca al monstruo
+        const damage     = this.characterAttacks();
+        const defense    = this.monster.defense ?? 0;
+        const actualDmg  = Math.max(1, damage - defense);
 
-    // Aplica el daño al monstruo
-    const result = this.monster.takeDamage(baseDamage);
-    log.push(result.message);
+        // Usamos monsterCurrentHp — no monster.health (que es el template)
+        this.monsterCurrentHp = Math.max(0, this.monsterCurrentHp - actualDmg);
 
-    if (skillName) {
-      log.push(`${this.characterName} channels energy into the attack!`);
+        const hitMsg = `${this.monster.getName()} took ${actualDmg} damage. HP: ${this.monsterCurrentHp}/${this.monster.getMaxHealth()}`;
+        turnLog.push(hitMsg);
+        this.addLog(hitMsg);
+
+        // ② Verifica si monstruo murió
+        if (this.monsterCurrentHp === 0) {
+            return this.handleVictory(turnLog, this.monster.getExperienceReward());
+        }
+
+        // ③ Monstruo contraataca
+        const monsterDamage = this.monster.getAttackPower();
+        const damageMsg     = this.character.takeDamage(monsterDamage);
+        const attackMsg     = `${this.monster.getName()} attacks ${this.character.getName()}!`;
+        turnLog.push(attackMsg);
+        turnLog.push(damageMsg);
+        this.addLog(attackMsg);
+        this.addLog(damageMsg);
+
+        // ④ Verifica si personaje murió
+        if (!this.character.isAlive()) {
+            return this.handleDefeat(turnLog);
+        }
+
+        return this.buildTurnResult(turnLog);
     }
-  }
 
-  // ── monsterAttacks — lógica de ataque del monstruo ───────
-  private monsterAttacks(log: string[]): void {
-    // monster.attack() viene de la interfaz Attackable
-    // Polimorfismo: cada monstruo tiene su propio attack()
-    const attackMessage = this.monster.attack(this.characterName);
-    log.push(attackMessage);
+    private characterAttacks(): number {
+        return Math.floor(
+            this.character.getStrength() * 2 +
+            this.character.getLevel() * 5 +
+            Math.random() * 10
+        );
+    }
 
-    // Aplica el daño al personaje
-    const monsterDamage = this.monster.getAttackPower();
-    const damageResult  = this.character.takeDamage(monsterDamage);
-    log.push(damageResult);
-  }
+    private handleVictory(turnLog: string[], expReward: number): TurnResult {
+        this.status   = CombatStatus.VICTORY;
+        const expMsg  = this.character.gainExperience(expReward);
+        turnLog.push(expMsg);
+        this.addLog(expMsg);
+        return this.buildTurnResult(turnLog, expReward);
+    }
 
-  // ── handleVictory ─────────────────────────────────────────
-  private handleVictory(log: string[]): TurnResult {
-    this.status = CombatStatus.VICTORY;
+    private handleDefeat(turnLog: string[]): TurnResult {
+        this.status = CombatStatus.DEFEAT;
+        return this.buildTurnResult(turnLog);
+    }
 
-    // Obtiene la experiencia del monstruo derrotado
-    const expReward = this.monster.getExperienceReward();
-    const expResult = this.character.gainExperience(expReward);
+    private buildTurnResult(turnLog: string[], expGained?: number): TurnResult {
+        return {
+            turn:        this.turn,
+            log:         turnLog,
+            status:      this.status,
+            characterHp: `${this.character.getHealth()}/${this.character.getMaxHealth()}`,
+            characterMp: `${this.character.getMana()}/${this.character.getMaxMana()}`,
+            monsterHp:   `${this.monsterCurrentHp}/${this.monster.getMaxHealth()}`,
+            expGained,
+        };
+    }
 
-    log.push(`💀 ${this.monster.getName()} has been defeated!`);
-    log.push(expResult);
-
-    this.fullLog.push(...log);
-    return this.buildTurnResult(log, expReward);
-  }
-
-  // ── handleDefeat ──────────────────────────────────────────
-  private handleDefeat(log: string[]): TurnResult {
-    this.status = CombatStatus.DEFEAT;
-    log.push(`💀 ${this.characterName} has been defeated...`);
-    this.fullLog.push(...log);
-    return this.buildTurnResult(log);
-  }
-
-  // ── buildTurnResult — construye la respuesta del turno ───
-  private buildTurnResult(log: string[], expGained?: number): TurnResult {
-    return {
-      turn:         this.turn,
-      log,
-      status:       this.status,
-      characterHp:  `${this.character.getHealth()}/${this.character.getMaxHealth()}`,
-      characterMp:  `${this.character.getMana()}/${this.character.getMaxMana()}`,
-      monsterHp:    `${this.monster.getHealth()}/${this.monster.getMaxHealth()}`,
-      expGained,
-    };
-  }
-
-  // ── toJSON — estado completo del combate ──────────────────
-  toJSON(): object {
-    return {
-      id:            this.id,
-      status:        this.status,
-      turn:          this.turn,
-      map:           this.mapName,
-      character: {
-        name:  this.characterName,
-        hp:    `${this.character.getHealth()}/${this.character.getMaxHealth()}`,
-        mp:    `${this.character.getMana()}/${this.character.getMaxMana()}`,
-      },
-      monster: {
-        name:  this.monster.getName(),
-        level: this.monster.getLevel(),
-        hp:    `${this.monster.getHealth()}/${this.monster.getMaxHealth()}`,
-      },
-      log: this.fullLog,
-    };
-  }
-} 
+    toJSON() {
+        return {
+            id:               this.id,
+            status:           this.status,
+            turn:             this.turn,
+            mapName:          this.mapName,
+            character:        this.character?.toJSON(),
+            monster: {
+                ...this.monster?.toJSON(),
+                hp: `${this.monsterCurrentHp}/${this.monster?.getMaxHealth()}`,
+            },
+            log:              this.getLog(),
+            createdAt:        this.createdAt,
+        };
+    }
+}
