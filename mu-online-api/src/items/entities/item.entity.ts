@@ -1,183 +1,156 @@
+// src/items/entities/item.entity.ts
+// + TypeORM Sprint 2: mapeo a tabla items en PostgreSQL
+
+import {
+    Entity,
+    PrimaryColumn,
+    Column,
+    TableInheritance,
+    CreateDateColumn,
+} from 'typeorm';
+
 // ============================================================
-// ⚔️ ITEM — Clase Base Abstracta
-// Concepto: Herencia + Encapsulamiento + Interfaces
+// 📖 ITEM — diferencia con Character y Monster
 // ============================================================
 //
-// ¿Por qué 'abstract'?
-// Porque un "Item" genérico no tiene sentido en MU Online.
-// Nadie equipa un "Item" — equipa una "Sword" o una "Armor".
-// 'abstract' nos impide hacer: new Item() ← error de TypeScript
+// Character y Monster usan @PrimaryGeneratedColumn() → ID numérico
+// Item usa @PrimaryColumn() → ID string personalizado
 //
-// Es como en Django:
-//   class Animal(models.Model):      ← abstracto conceptualmente
-//       class Meta: abstract = True
-//   class Dog(Animal): pass          ← concreto, se puede instanciar
+// ¿Por qué?
+// En Sprint 1 el ID del item era: 'Weapon-1234567890'
+// Queremos mantener ese formato descriptivo.
+// @PrimaryColumn() nos deja definir el ID manualmente.
+//
+// En la DB quedará:
+//   id              | type   | name          | rarity  | ...
+//   Weapon-17234... | Weapon | Broad Sword+3 | Ancient | ...
+//   Armor-17234...  | Armor  | Plate Armor   | Normal  | ...
+//   Ring-17234...   | Ring   | Ring of Fire  | Magic   | ...
 // ============================================================
 
-// ── Tipos de item disponibles en MU Online ─────────────────
-// 'enum' en TypeScript = conjunto de valores con nombre
-// Evita strings mágicos como 'weapon' o 'WEAPON' o 'Weapon'
-// Con enum siempre usas ItemType.WEAPON — consistente y seguro
 export enum ItemType {
-  WEAPON = 'Weapon',
-  ARMOR  = 'Armor',
-  RING   = 'Ring',
-  HELM   = 'Helm',
-  BOOTS  = 'Boots',
+    WEAPON = 'WEAPON',
+    ARMOR  = 'ARMOR',
+    RING   = 'RING',
+    HELM   = 'HELM',
+    BOOTS  = 'BOOTS',
 }
 
-// ── Rareza del item ─────────────────────────────────────────
-// En MU Online los items tienen nivel de rareza que afecta sus stats
 export enum ItemRarity {
-  NORMAL    = 'Normal',    // sin bonus
-  MAGIC     = 'Magic',     // +10% stats
-  ANCIENT   = 'Ancient',   // +25% stats
-  EXCELLENT = 'Excellent', // +50% stats
+    NORMAL    = 'NORMAL',
+    MAGIC     = 'MAGIC',
+    ANCIENT   = 'ANCIENT',
+    EXCELLENT = 'EXCELLENT',
 }
 
-// ── Interfaz Equippable ─────────────────────────────────────
-/**
- * ¿Por qué una interfaz aquí y no solo métodos en la clase?
- *
- * La interfaz define el CONTRATO — cualquier clase que implemente
- * Equippable GARANTIZA que tiene equip(), unequip() y getStatBonus().
- *
- * Más adelante, cuando hagamos el sistema de combate:
- *   character.equip(item)  ← TypeScript verifica que item sea Equippable
- *
- * Sin la interfaz tendríamos que verificar manualmente si el item
- * tiene esos métodos. Con la interfaz, TypeScript lo garantiza.
- */
 export interface Equippable {
-  equip(characterName: string): string;
-  unequip(characterName: string): string;
-  getStatBonus(): object;
+    equip(characterName: string): string;
+    unequip(): string;
+    getStatBonus(): object;
 }
 
-// ============================================================
-// CLASE BASE ABSTRACTA — Item
-// ============================================================
+@Entity('items')
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export abstract class Item {
 
-  // ── Propiedades ──────────────────────────────────────────
-  /**
-   * 'protected' → accesible en Item y en sus clases hijas
-   * 'private'   → solo en Item (las hijas no podrían leerlas)
-   *
-   * Usamos 'protected' porque Weapon necesita leer 'name',
-   * 'level', 'rarity' para construir sus propios métodos.
-   */
-  protected id: string;
-  protected name: string;
-  protected itemType: ItemType;
-  protected level: number;        // nivel del item (1-15 en MU)
-  protected rarity: ItemRarity;
-  protected isEquipped: boolean;
-  protected equippedBy: string | null; // nombre del personaje que lo lleva
+    // @PrimaryColumn() → ID manual, no autoincremental
+    // Lo asignamos nosotros en el constructor: 'Weapon-timestamp'
+    @PrimaryColumn()
+    id: string;
 
-  // ── Constructor ───────────────────────────────────────────
-  /**
-   * Las clases hijas DEBEN llamar super() con estos parámetros.
-   * El constructor de Item inicializa todo lo que es COMÚN
-   * entre Weapon, Armor y Ring.
-   *
-   * Lo específico de cada tipo (attackBonus, defenseBonus)
-   * lo inicializa cada clase hija.
-   */
-  constructor(
-    name: string,
-    itemType: ItemType,
-    level: number = 1,
-    rarity: ItemRarity = ItemRarity.NORMAL,
-  ) {
-    // Genera un ID único basado en timestamp
-    // En Sprint 2 con TypeORM esto será autoincremental en DB
-    this.id          = `${itemType}-${Date.now()}`;
-    this.name        = name;
-    this.itemType    = itemType;
-    this.level       = level;
-    this.rarity      = rarity;
-    this.isEquipped  = false;  // empieza sin equipar
-    this.equippedBy  = null;   // nadie lo lleva aún
+    @Column()
+    name: string;
 
-    // Llama al método abstracto — cada hijo lo implementa diferente
-    // Igual que Character llama a initializeStats() en su constructor
-    this.initializeStats();
-  }
+    @Column({ type: 'enum', enum: ItemType })
+    itemType: ItemType;
 
-  // ── Método abstracto ─────────────────────────────────────
-  /**
-   * 'abstract' aquí obliga a Weapon, Armor y Ring a definir
-   * sus propios stats (attackBonus, defenseBonus, etc.)
-   *
-   * TypeScript no te deja crear una clase hija sin implementarlo.
-   * Es el mismo patrón que usamos en character.entity.ts
-   */
-  protected abstract initializeStats(): void;
+    @Column({ type: 'enum', enum: ItemRarity, default: ItemRarity.NORMAL })
+    rarity: ItemRarity;
 
-  // ── Métodos comunes a todos los items ────────────────────
+    @Column({ default: 1 })
+    level: number;
 
-  /**
-   * Calcula el multiplicador de rareza para los stats.
-   * 'private' porque es un detalle interno de Item —
-   * ni las hijas ni el exterior necesitan llamarlo directamente.
-   *
-   * ': number' → retorna un número (el multiplicador)
-   */
-  private getRarityMultiplier(): number {
-    // Switch expression — más limpio que if/else
-    switch (this.rarity) {
-      case ItemRarity.MAGIC:     return 1.10; // +10%
-      case ItemRarity.ANCIENT:   return 1.25; // +25%
-      case ItemRarity.EXCELLENT: return 1.50; // +50%
-      default:                   return 1.00; // sin bonus
+    @Column({ default: false })
+    isEquipped: boolean;
+
+    @Column({ type: 'varchar', nullable: true })
+    equippedBy: string | null;
+    // Columnas específicas de Weapon — null en Armor y Ring
+    @Column({ nullable: true })
+    baseAttackMin: number;
+
+    @Column({ nullable: true })
+    baseAttackMax: number;
+
+    @Column({ type: 'float', nullable: true })
+    attackSpeed: number;
+
+    // Columnas específicas de Armor — null en Weapon y Ring
+    @Column({ nullable: true })
+    baseDefense: number;
+
+    @Column({ nullable: true })
+    baseHpBonus: number;
+
+    // Columnas específicas de Ring — null en Weapon y Armor
+    @Column({ nullable: true })
+    effect: string;
+
+    @Column({ nullable: true })
+    effectValue: number;
+
+    @CreateDateColumn()
+    createdAt: Date;
+
+    // ── Constructor con parámetros opcionales ─────────────
+    constructor(
+        name?: string,
+        itemType?: ItemType,
+        level: number = 1,
+        rarity: ItemRarity = ItemRarity.NORMAL,
+    ) {
+        if (name && itemType) {
+            this.id       = `${itemType}-${Date.now()}`;
+            this.name     = name;
+            this.itemType = itemType;
+            this.level    = level;
+            this.rarity   = rarity;
+            this.isEquipped = false;
+            this.initializeStats();
+        }
     }
-  }
 
-  /**
-   * Calcula el bonus final aplicando rareza y nivel.
-   * 'protected' → las hijas lo usan para calcular sus stats finales.
-   *
-   * Fórmula: baseValue * rarityMultiplier * (1 + level * 0.1)
-   * Ejemplo: 50 base, Ancient, level 5
-   *   50 * 1.25 * (1 + 5*0.1) = 50 * 1.25 * 1.5 = 93.75 → 93
-   */
-  protected calculateFinalBonus(baseValue: number): number {
-    const rarityMult = this.getRarityMultiplier();
-    const levelMult  = 1 + this.level * 0.1;
-    return Math.floor(baseValue * rarityMult * levelMult);
-  }
+    protected abstract initializeStats(): void;
 
-  // ── Getters — acceso controlado a propiedades privadas ───
-  /**
-   * ¿Por qué getters y no propiedades public?
-   * Con getters podemos agregar lógica antes de retornar.
-   * Ejemplo: getId() podría formatear el ID antes de retornarlo.
-   * Con public la propiedad se expone tal cual — sin control.
-   */
-  getId(): string    { return this.id; }
-  getName(): string  { return this.name; }
-  getLevel(): number { return this.level; }
-  getRarity(): string { return this.rarity; }
-  getIsEquipped(): boolean { return this.isEquipped; }
+    // Multiplicador de rareza
+    protected getRarityMultiplier(): number {
+        const multipliers = {
+            [ItemRarity.NORMAL]:    1.0,
+            [ItemRarity.MAGIC]:     1.1,
+            [ItemRarity.ANCIENT]:   1.25,
+            [ItemRarity.EXCELLENT]: 1.5,
+        };
+        return multipliers[this.rarity] ?? 1.0;
+    }
 
-  // ── toJSON — serialización para respuestas HTTP ──────────
-  /**
-   * 'object' como tipo de retorno → retorna cualquier objeto JS.
-   * En Sprint 2 con TypeORM esto se manejará automáticamente.
-   *
-   * Las clases hijas pueden hacer override de este método
-   * para agregar sus propios campos específicos.
-   */
-  toJSON(): object {
-    return {
-      id:         this.id,
-      name:       this.name,
-      type:       this.itemType,
-      level:      this.level,
-      rarity:     this.rarity,
-      isEquipped: this.isEquipped,
-      equippedBy: this.equippedBy,
-    };
-  }
+    protected calculateFinalBonus(baseValue: number): number {
+        return Math.floor(baseValue * this.getRarityMultiplier() * (1 + this.level * 0.1));
+    }
+
+    // ── Getters ───────────────────────────────────────────
+    getId(): string    { return this.id; }
+    getName(): string  { return this.name; }
+
+    toJSON(): object {
+        return {
+            id:         this.id,
+            name:       this.name,
+            itemType:   this.itemType,
+            rarity:     this.rarity,
+            level:      this.level,
+            isEquipped: this.isEquipped,
+            equippedBy: this.equippedBy,
+            createdAt:  this.createdAt,
+        };
+    }
 }
