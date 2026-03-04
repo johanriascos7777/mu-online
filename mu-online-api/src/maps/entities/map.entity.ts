@@ -1,30 +1,29 @@
 // src/maps/entities/map.entity.ts
-// + TypeORM Sprint 2: mapeo a tabla maps en PostgreSQL
+// + Relación Many-to-Many con Monsters
 
 import {
     Entity,
     PrimaryColumn,
     Column,
+    ManyToMany,
+    JoinTable,
 } from 'typeorm';
+import { Monster } from '../../monsters/entities/monster.entity';
 
 // ============================================================
-// 📖 MAP — el más simple de todos
+// 📖 RELACIÓN Map ↔ Monster
 // ============================================================
 //
-// Character → @Entity + @TableInheritance (tiene hijos)
-// Monster   → @Entity + @TableInheritance (tiene hijos)
-// Item      → @Entity + @TableInheritance (tiene hijos)
-// Map       → @Entity solo ← NO tiene hijos, una sola tabla
+// Un mapa tiene MUCHOS monstruos (Lorencia tiene BudgeDragon y Goblin)
+// Un monstruo puede estar en MUCHOS mapas (BudgeDragon en Lorencia y Dungeon)
+// → Many-to-Many
 //
-// ¿Por qué no necesita @TableInheritance?
-// Todos los mapas son iguales en estructura — Lorencia,
-// Dungeon, Devias, Noria y Atlans tienen los mismos campos.
-// Solo cambian los VALORES, no la estructura.
-//
-// En la DB quedará:
-//   id       | name     | minLevel | maxLevel | description
-//   lorencia | Lorencia | 1        | 40       | The starting town...
-//   dungeon  | Dungeon  | 40       | 80       | Dark underground...
+// TypeORM creará la tabla:
+//   map_monsters:
+//     mapId     | monsterId
+//     lorencia  | 1          ← BudgeDragon en Lorencia
+//     lorencia  | 2          ← Goblin en Lorencia
+//     dungeon   | 1          ← BudgeDragon también en Dungeon
 // ============================================================
 
 export enum MapName {
@@ -38,8 +37,6 @@ export enum MapName {
 @Entity('maps')
 export class GameMap {
 
-    // @PrimaryColumn() → ID string descriptivo, igual que Item
-    // 'lorencia', 'dungeon', 'devias', etc.
     @PrimaryColumn()
     id: string;
 
@@ -58,6 +55,15 @@ export class GameMap {
     @Column({ nullable: true })
     backgroundTheme: string;
 
+    // ── RELACIÓN Many-to-Many con Monsters ────────────────
+    @ManyToMany(() => Monster, { eager: true })
+    @JoinTable({
+        name: 'map_monsters',
+        joinColumn:        { name: 'mapId' },
+        inverseJoinColumn: { name: 'monsterId' },
+    })
+    monsters: Monster[];
+
     constructor(
         id?: string,
         name?: string,
@@ -69,10 +75,11 @@ export class GameMap {
         if (id && name) {
             this.id              = id;
             this.name            = name;
-            this.minLevel        = minLevel!;        // ← agrega !
-            this.maxLevel        = maxLevel!;        // ← agrega !
-            this.description     = description!;    // ← agrega !
-            this.backgroundTheme = backgroundTheme!; // ← agrega !
+            this.minLevel        = minLevel!;
+            this.maxLevel        = maxLevel!;
+            this.description     = description!;
+            this.backgroundTheme = backgroundTheme!;
+            this.monsters        = [];
         }
     }
 
@@ -92,6 +99,12 @@ export class GameMap {
         return { canEnter: true, message: `Welcome to ${this.name}!` };
     }
 
+    // Retorna un monstruo aleatorio del mapa desde DB
+    getRandomMonster(): Monster | null {
+        if (!this.monsters || this.monsters.length === 0) return null;
+        return this.monsters[Math.floor(Math.random() * this.monsters.length)];
+    }
+
     toJSON() {
         return {
             id:              this.id,
@@ -99,17 +112,15 @@ export class GameMap {
             levelRange:      `${this.minLevel} - ${this.maxLevel}`,
             description:     this.description,
             backgroundTheme: this.backgroundTheme,
+            monsters:        this.monsters?.map(m => m.toJSON()) ?? [],
         };
     }
 }
 
-// ── Datos semilla — los 5 mapas de MU Online ─────────────
-// En Sprint 1 estos vivían en RAM como constante MAPS.
-// En Sprint 2 los sembramos en DB con POST /maps/seed
 export const MAPS_SEED = [
-    new GameMap('lorencia', MapName.LORENCIA, 1,   40,  'The starting town of MU Online',        'town'),
-    new GameMap('dungeon',  MapName.DUNGEON,  40,  80,  'Dark underground full of undead',        'dark'),
-    new GameMap('devias',   MapName.DEVIAS,   80,  130, 'Frozen lands with powerful monsters',   'snow'),
-    new GameMap('noria',    MapName.NORIA,    50,  100, 'Magical forest with elven creatures',   'forest'),
-    new GameMap('atlans',   MapName.ATLANS,   130, 999, 'Underwater city for the strongest',     'water'),
+    new GameMap('lorencia', MapName.LORENCIA, 1,   40,  'The starting town of MU Online',      'town'),
+    new GameMap('dungeon',  MapName.DUNGEON,  40,  80,  'Dark underground full of undead',      'dark'),
+    new GameMap('devias',   MapName.DEVIAS,   80,  130, 'Frozen lands with powerful monsters',  'snow'),
+    new GameMap('noria',    MapName.NORIA,    50,  100, 'Magical forest with elven creatures',  'forest'),
+    new GameMap('atlans',   MapName.ATLANS,   130, 999, 'Underwater city for the strongest',    'water'),
 ];
