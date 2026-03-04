@@ -1,69 +1,62 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { GameMap, MapName, MAPS } from './entities/map.entity';
+// src/maps/maps.service.ts
+
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { GameMap, MAPS_SEED } from './entities/map.entity';
 
 @Injectable()
 export class MapsService {
 
-  // ── Los mapas viven en el objeto MAPS (datos quemados Sprint 1)
-  // En Sprint 2 esto será: constructor(private mapRepo: Repository<GameMap>)
-  private maps: Record<MapName, GameMap> = MAPS;
+    constructor(
+        @InjectRepository(GameMap)
+        private readonly mapRepo: Repository<GameMap>,
+    ) {}
 
-  // ── findAll — retorna todos los mapas ───────────────────
-  findAll(): object[] {
-    return Object.values(this.maps).map(m => m.toJSON());
-  }
-
-  // ── findOne — busca un mapa por nombre ──────────────────
-  findOne(name: string): object {
-    // Busca el MapName enum que coincida (case insensitive)
-    const mapName = Object.values(MapName).find(
-      mn => mn.toLowerCase() === name.toLowerCase()
-    );
-
-    if (!mapName) {
-      throw new NotFoundException(`Map '${name}' not found. Available: ${Object.values(MapName).join(', ')}`);
+    // ── seed — puebla los 5 mapas en DB ──────────────────
+    async seed(): Promise<object> {
+        const existing = await this.mapRepo.count();
+        if (existing > 0) {
+            return { message: `Maps already seeded (${existing} found)` };
+        }
+        await this.mapRepo.save(MAPS_SEED);
+        return { message: `${MAPS_SEED.length} maps seeded successfully!` };
     }
 
-    return this.maps[mapName].toJSON();
-  }
+    async findAll(): Promise<object[]> {
+        const maps = await this.mapRepo.find();
+        return maps.map(m => m.toJSON());
+    }
 
-  // ── canEnter — verifica si el personaje puede entrar ────
-  /**
-   * Retorna si un personaje de cierto nivel puede entrar al mapa.
-   * En Sprint 2 esto recibirá el personaje real de la DB.
-   */
-  canEnter(mapName: string, characterLevel: number): object {
-    const map = this.getMapByName(mapName);
-    const allowed = map.canEnter(characterLevel);
+    async findOne(id: string): Promise<object> {
+        const map = await this.mapRepo.findOne({ where: { id } as any });
+        if (!map) throw new NotFoundException(`Map '${id}' not found`);
+        return map.toJSON();
+    }
 
-    return {
-      map:            map.toJSON(),
-      characterLevel,
-      canEnter:       allowed,
-      message:        allowed
-        ? `Level ${characterLevel} can enter ${mapName}!`
-        : `Level ${characterLevel} cannot enter ${mapName}. Required: ${map.minLevel}-${map.maxLevel}`,
-    };
-  }
+    canEnter(mapId: string, characterLevel: number): object {
+        // canEnter es lógica pura — no necesita DB
+        // Solo necesitamos el mapa, que viene del findOne
+        // pero para CombatService lo dejamos síncrono por ahora
+        const map = MAPS_SEED.find(m => m.id === mapId || m.name === mapId);
+        if (!map) throw new NotFoundException(`Map '${mapId}' not found`);
+        return map.canEnter(characterLevel);
+    }
 
-  // ── getRandomMonster — monstruo aleatorio del mapa ──────
-  getRandomMonster(mapName: string): object {
-    const map = this.getMapByName(mapName);
-    const monster = map.getRandomMonster();
+    getRandomMonster(mapId: string): object {
+        // En Sprint 2 esto vendrá de la relación map_monsters
+        // Por ahora retorna datos del MAPS_SEED
+        const monstersPerMap: Record<string, string[]> = {
+            lorencia: ['BudgeDragon', 'Goblin'],
+            dungeon:  ['Skeleton', 'Ghost'],
+            devias:   ['IceMonster', 'Yeti'],
+            noria:    ['ForestMonster', 'EliteYeti'],
+            atlans:   ['Bahamut', 'Vepar'],
+        };
 
-    return {
-      map:     mapName,
-      monster,
-      message: `A wild ${monster.name} (Lv.${monster.level}) appears in ${mapName}!`,
-    };
-  }
+        const monsters = monstersPerMap[mapId.toLowerCase()] ?? ['BudgeDragon'];
+        const random   = monsters[Math.floor(Math.random() * monsters.length)];
 
-  // ── Helper privado ────────────────────────────────────
-  private getMapByName(name: string): GameMap {
-    const mapName = Object.values(MapName).find(
-      mn => mn.toLowerCase() === name.toLowerCase()
-    );
-    if (!mapName) throw new NotFoundException(`Map '${name}' not found`);
-    return this.maps[mapName];
-  }
+        return { monster: { name: random } };
+    }
 }
