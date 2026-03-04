@@ -6,6 +6,7 @@ import { CharactersModule } from './characters/characters.module';
 import { ItemsModule } from './items/items.module';
 import { MapsModule } from './maps/maps.module';
 import { CombatModule } from './combat/combat.module';
+import { MonstersModule } from './monsters/monsters.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CombatModule } from './combat/combat.module';
     ItemsModule,
     MapsModule,
     CombatModule,
+    MonstersModule,
   ],
   controllers: [AppController],
   providers:   [AppService],

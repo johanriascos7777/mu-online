@@ -1,7 +1,35 @@
-// Tercer concepto: Interfaces y Polimorfismo
 // src/monsters/entities/monster.entity.ts
+// Tercer concepto: Interfaces y Polimorfismo
+// + TypeORM Sprint 2: mapeo a tabla monsters en PostgreSQL
 
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    TableInheritance,
+} from 'typeorm';
 import { Attackable } from '../../characters/interfaces/attackable.interface';
+
+// ============================================================
+// 📖 TYPEORM EN MONSTERS — mismo patrón que Character
+// ============================================================
+//
+// Character usó:
+//   @Entity('characters')
+//   @TableInheritance(...)  ← una tabla, columna 'type'
+//   @ChildEntity('DarkKnight') en cada hijo
+//
+// Monster usa EXACTAMENTE lo mismo:
+//   @Entity('monsters')
+//   @TableInheritance(...)  ← una tabla, columna 'type'
+//   @ChildEntity('BudgeDragon') en BudgeDragon
+//   @ChildEntity('Goblin') en Goblin
+//
+// En la DB quedará:
+//   id | type        | name         | level | health | ...
+//   1  | BudgeDragon | Budge Dragon | 3     | 50     | ...
+//   2  | Goblin      | Goblin       | 5     | 35     | ...
+// ============================================================
 
 export enum MonsterType {
     NORMAL = 'Normal',
@@ -9,29 +37,59 @@ export enum MonsterType {
     BOSS   = 'Boss',
 }
 
+@Entity('monsters')
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export abstract class Monster implements Attackable {
-    protected name: string;
-    protected level: number;
-    protected health: number;
-    protected maxHealth: number;
-    protected attackMin: number;
-    protected attackMax: number;
-    protected defense: number;
-    protected experienceReward: number;
-    protected monsterType: MonsterType;
-    protected map: string;
 
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    @Column()
+    name: string;
+
+    @Column()
+    level: number;
+
+    @Column({ type: 'enum', enum: MonsterType, default: MonsterType.NORMAL })
+    monsterType: MonsterType;
+
+    @Column()
+    map: string;
+
+    @Column({ default: 0 })
+    health: number;
+
+    @Column({ default: 0 })
+    maxHealth: number;
+
+    @Column({ default: 0 })
+    attackMin: number;
+
+    @Column({ default: 0 })
+    attackMax: number;
+
+    @Column({ default: 0 })
+    defense: number;
+
+    @Column({ default: 0 })
+    experienceReward: number;
+
+    // ── Constructor con parámetros opcionales ─────────────
+    // Mismo GOTCHA que Character: TypeORM necesita instancias
+    // vacías para hidratar desde la DB → parámetros con '?'
     constructor(
-        name: string,
-        level: number,
-        map: string,
+        name?: string,
+        level?: number,
+        map?: string,
         monsterType: MonsterType = MonsterType.NORMAL,
     ) {
-        this.name        = name;
-        this.level       = level;
-        this.map         = map;
-        this.monsterType = monsterType;
-        this.initializeStats();
+        if (name && level && map) {
+            this.name        = name;
+            this.level       = level;
+            this.map         = map;
+            this.monsterType = monsterType;
+            this.initializeStats();
+        }
     }
 
     protected abstract initializeStats(): void;
@@ -66,22 +124,17 @@ export abstract class Monster implements Attackable {
         };
     }
 
-    // ── Getters — necesarios para CombatSession ────────────
-    // CombatSession necesita leer estas propiedades para
-    // construir el TurnResult y el toJSON() del combate.
-    // 'protected' no es suficiente porque CombatSession
-    // no es hija de Monster — necesita acceso 'public'.
-    getName(): string          { return this.name; }
-    getLevel(): number         { return this.level; }
-    getHealth(): number        { return this.health; }
-    getMaxHealth(): number     { return this.maxHealth; }
+    // ── Getters ───────────────────────────────────────────
+    getName(): string             { return this.name; }
+    getLevel(): number            { return this.level; }
+    getHealth(): number           { return this.health; }
+    getMaxHealth(): number        { return this.maxHealth; }
     getExperienceReward(): number { return this.experienceReward; }
-
-    // ── isAlive — usado en CombatSession para verificar ───
-    isAlive(): boolean { return this.health > 0; }
+    isAlive(): boolean            { return this.health > 0; }
 
     toJSON() {
         return {
+            id:        this.id,
             name:      this.name,
             level:     this.level,
             type:      this.monsterType,
