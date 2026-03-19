@@ -8,6 +8,165 @@ npm run start:dev
 
 ---
 
+# 🧠 ¿Por qué los Átomos y Moléculas no se conectan al Backend?
+
+## La regla de oro del Atomic Design
+
+En este proyecto seguimos una regla simple pero poderosa:
+
+```
+Átomos y Moléculas → DUMB  (no saben que existe el backend)
+Organismos         → SMART (aquí vive la conexión a la API)
+```
+
+---
+
+## ¿Qué significa DUMB?
+
+Un componente **DUMB** (también llamado "presentacional") solo hace una cosa:
+**recibir props y renderizar**. No sabe de dónde vienen los datos,
+no llama a ninguna API, no tiene `useEffect`, no maneja errores de red.
+
+```tsx
+// ✅ StatBar es DUMB — solo recibe props y pinta la barra
+<StatBar label="HP" currentValue={390} maxValue={500} type="hp" />
+
+// ✅ CharacterCard es DUMB — solo recibe props y pinta la card
+<CharacterCard
+  name="Johan"
+  characterClass="DarkKnight"
+  hp={{ current: 390, max: 500 }}
+  // ...
+/>
+```
+
+`CharacterCard` no sabe si Johan vino de PostgreSQL, de un JSON local,
+o de los datos de una historia de Storybook. Solo sabe que recibió
+`name="Johan"` y lo pinta.
+
+---
+
+## ¿Qué significa SMART?
+
+Un componente **SMART** (también llamado "contenedor") sí conoce
+el mundo exterior. Llama a la API, maneja los estados de carga
+y error, y luego pasa los datos a los componentes DUMB.
+
+```tsx
+// ✅ CharacterList es SMART — llama al backend y distribuye los datos
+function CharacterList() {
+
+  const [characters, setCharacters] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+
+  // Aquí vive el fetch — en ningún átomo ni molécula
+  useEffect(() => {
+    fetch('http://localhost:3000/characters')
+      .then(res => res.json())
+      .then(data => setCharacters(data));
+  }, []);
+
+  // Pasa los datos a la molécula DUMB
+  return characters.map(character => (
+    <CharacterCard
+      name={character.name}
+      characterClass={character.class}
+      // ...
+    />
+  ));
+}
+```
+
+---
+
+## ¿Por qué esta separación?
+
+### 1. Storybook funciona sin backend
+
+Como los átomos y moléculas son DUMB, puedes diseñarlos y verlos
+en Storybook **sin que el backend esté corriendo**. Solo les pasas
+props con datos de ejemplo y ya.
+
+```
+Storybook abierto    Backend apagado
+      ↓                    ↓
+CharacterCard ✅      CharacterList ❌ (no puede hacer fetch)
+StatBar       ✅
+LevelBadge    ✅
+```
+
+Si `CharacterCard` hiciera el fetch internamente, Storybook
+mostraría un error en cada historia. Así no — Storybook
+solo necesita props.
+
+### 2. Reutilización real
+
+Al ser DUMB, `CharacterCard` puede usarse en múltiples contextos
+sin cambiar su código:
+
+```
+CharacterList    → datos reales de GET /characters
+CombatScreen     → datos del personaje activo en combate
+CreateCharacter  → preview antes de confirmar la creación
+Storybook        → datos de ejemplo para diseñar
+```
+
+Si `CharacterCard` hiciera su propio fetch, estaría atada
+a un solo endpoint y no podría reutilizarse así.
+
+### 3. Errores fáciles de localizar
+
+Con esta separación, cuando algo falla sabes exactamente dónde buscar:
+
+```
+Problema visual (color, tamaño, layout) → átomo o molécula
+Problema de datos (fetch, loading, error) → organismo
+```
+
+---
+
+## El mapa completo del proyecto
+
+```
+01-atoms/
+├── StatBar            DUMB — pinta una barra, nada más
+├── LevelBadge         DUMB — pinta el nivel, nada más
+├── ClassLabel         DUMB — pinta la clase con su color
+├── StatBox            DUMB — pinta un stat (STR/AGI/VIT/ENE)
+├── SkillTag           DUMB — pinta el nombre de una habilidad
+├── ActionBtn          DUMB — pinta un botón de acción
+└── CharacterSilhouette DUMB — pinta el SVG del personaje
+
+02-molecules/
+├── CharacterCard      DUMB — combina los átomos en una card
+└── StatGroup          DUMB — agrupa las tres barras (HP/MP/EXP)
+
+03-organisms/          ← AQUÍ EMPIEZA LA CONEXIÓN AL BACKEND
+├── CharacterList      SMART — GET /characters → renderiza CharacterCards
+├── MapSelector        SMART — GET /maps → renderiza MapCards
+└── CombatArena        SMART — POST /combat/start + POST /combat/:id/attack
+```
+
+---
+
+## Analogía con MU Online
+
+Piénsalo así — en el juego real de MU Online:
+
+```
+Átomo     = el píxel en pantalla. Solo sabe su color.
+Molécula  = el sprite del personaje. Solo sabe cómo verse.
+Organismo = el servidor del juego. Sabe quién eres,
+            cuántos HP tienes, en qué mapa estás,
+            y le dice al sprite cómo pintarse.
+```
+
+El servidor (organismo) tiene toda la lógica e información.
+El sprite (molécula/átomo) solo recibe instrucciones y las ejecuta.
+
+---
+
 ### Lo que ya dominarás al terminar este proyecto:
 
 **POO completo:**
