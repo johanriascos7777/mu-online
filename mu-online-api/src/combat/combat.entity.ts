@@ -50,7 +50,10 @@ export class CombatSession {
     character: Character;
 
     // ── FK al monstruo real en DB ─────────────────────────
-    @ManyToOne(() => Monster, { eager: true })
+    // ── FIX: nullable: true porque el clon no tiene ID ───
+    // El monstruo en combate es un CLON sin ID de DB.
+    // Guardamos sus stats como columnas separadas debajo.
+    @ManyToOne(() => Monster, { eager: true, nullable: true })
     @JoinColumn({ name: 'monsterId' })
     monster: Monster;
 
@@ -67,6 +70,34 @@ export class CombatSession {
     // y usamos monster solo para leer sus stats base (attack, defense).
     @Column({ default: 0 })
     monsterCurrentHp: number;
+
+    // ── FIX: stats del monstruo guardados como columnas ──────────────
+    // Al recargar el combate desde DB, this.monster viene null porque
+    // el clon no tiene ID → monsterId es null en la tabla.
+    // Solución: guardamos todo lo que necesitamos del monstruo
+    // directamente en la fila del combate al crearlo.
+    // Así executeTurn() puede leer monsterDefense, monsterAttackMin, etc.
+    // sin depender de this.monster que puede ser null.
+    @Column({ default: 0 })
+    monsterMaxHp: number;
+
+    @Column({ default: 0 })
+    monsterDefense: number;
+
+    @Column({ default: 0 })
+    monsterAttackMin: number;
+
+    @Column({ default: 0 })
+    monsterAttackMax: number;
+
+    @Column({ default: 0 })
+    monsterExpReward: number;
+
+    @Column({ default: '' })
+    monsterName: string;
+
+    @Column({ default: 0 })
+    monsterLevel: number;
 
     @Column({ type: 'text', default: '[]' })
     log: string;
@@ -88,6 +119,16 @@ export class CombatSession {
             this.log              = '[]';
             // HP inicial del monstruo tomado de su maxHealth
             this.monsterCurrentHp = monster.getMaxHealth();
+            // ── FIX: guardamos todos los stats del monstruo ──────────
+            // Así los tenemos disponibles aunque monster venga null
+            // al recargar el combate desde DB en turnos posteriores.
+            this.monsterMaxHp     = monster.getMaxHealth();
+            this.monsterDefense   = monster.defense ?? 0;
+            this.monsterAttackMin = monster.attackMin ?? 0;
+            this.monsterAttackMax = monster.attackMax ?? 0;
+            this.monsterExpReward = monster.getExperienceReward();
+            this.monsterName      = monster.getName();
+            this.monsterLevel     = monster.getLevel();
         }
     }
 
@@ -109,26 +150,31 @@ export class CombatSession {
         const turnLog: string[] = [];
 
         // ① Personaje ataca al monstruo
-        const damage     = this.characterAttacks();
-        const defense    = this.monster.defense ?? 0;
-        const actualDmg  = Math.max(1, damage - defense);
+        const damage    = this.characterAttacks();
+        // ── FIX: usamos monsterDefense (columna) en lugar de
+        // this.monster.defense que viene null al recargar desde DB
+        const actualDmg = Math.max(1, damage - this.monsterDefense);
 
         // Usamos monsterCurrentHp — no monster.health (que es el template)
         this.monsterCurrentHp = Math.max(0, this.monsterCurrentHp - actualDmg);
 
-        const hitMsg = `${this.monster.getName()} took ${actualDmg} damage. HP: ${this.monsterCurrentHp}/${this.monster.getMaxHealth()}`;
+        const hitMsg = `${this.monsterName} took ${actualDmg} damage. HP: ${this.monsterCurrentHp}/${this.monsterMaxHp}`;
         turnLog.push(hitMsg);
         this.addLog(hitMsg);
 
         // ② Verifica si monstruo murió
         if (this.monsterCurrentHp === 0) {
-            return this.handleVictory(turnLog, this.monster.getExperienceReward());
+            return this.handleVictory(turnLog, this.monsterExpReward);
         }
 
         // ③ Monstruo contraataca
-        const monsterDamage = this.monster.getAttackPower();
-        const damageMsg     = this.character.takeDamage(monsterDamage);
-        const attackMsg     = `${this.monster.getName()} attacks ${this.character.getName()}!`;
+        // ── FIX: calculamos el daño con monsterAttackMin/Max (columnas)
+        // en lugar de this.monster.getAttackPower() que es null
+        const monsterDamage = Math.floor(
+            Math.random() * (this.monsterAttackMax - this.monsterAttackMin + 1) + this.monsterAttackMin
+        );
+        const attackMsg = `${this.monsterName} attacks ${this.character.getName()}!`;
+        const damageMsg = this.character.takeDamage(monsterDamage);
         turnLog.push(attackMsg);
         turnLog.push(damageMsg);
         this.addLog(attackMsg);
@@ -151,8 +197,8 @@ export class CombatSession {
     }
 
     private handleVictory(turnLog: string[], expReward: number): TurnResult {
-        this.status   = CombatStatus.VICTORY;
-        const expMsg  = this.character.gainExperience(expReward);
+        this.status  = CombatStatus.VICTORY;
+        const expMsg = this.character.gainExperience(expReward);
         turnLog.push(expMsg);
         this.addLog(expMsg);
         return this.buildTurnResult(turnLog, expReward);
@@ -170,24 +216,29 @@ export class CombatSession {
             status:      this.status,
             characterHp: `${this.character.getHealth()}/${this.character.getMaxHealth()}`,
             characterMp: `${this.character.getMana()}/${this.character.getMaxMana()}`,
-            monsterHp:   `${this.monsterCurrentHp}/${this.monster.getMaxHealth()}`,
+            // ── FIX: usamos monsterMaxHp (columna) en lugar de
+            // this.monster.getMaxHealth() que es null
+            monsterHp:   `${this.monsterCurrentHp}/${this.monsterMaxHp}`,
             expGained,
         };
     }
 
     toJSON() {
         return {
-            id:               this.id,
-            status:           this.status,
-            turn:             this.turn,
-            mapName:          this.mapName,
-            character:        this.character?.toJSON(),
+            id:        this.id,
+            status:    this.status,
+            turn:      this.turn,
+            mapName:   this.mapName,
+            character: this.character?.toJSON(),
+            // ── FIX: construimos el objeto monster con las columnas
+            // guardadas, sin depender de this.monster que puede ser null
             monster: {
-                ...this.monster?.toJSON(),
-                hp: `${this.monsterCurrentHp}/${this.monster?.getMaxHealth()}`,
+                name:  this.monsterName,
+                level: this.monsterLevel,
+                hp:    `${this.monsterCurrentHp}/${this.monsterMaxHp}`,
             },
-            log:              this.getLog(),
-            createdAt:        this.createdAt,
+            log:       this.getLog(),
+            createdAt: this.createdAt,
         };
     }
 }

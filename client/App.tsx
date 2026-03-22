@@ -9,7 +9,7 @@ export default function App() {
   return (
     <View className="flex-1 items-center justify-center bg-mu-bg-deep p-6">
       <Text className="text-3xl text-mu-gold font-cinzelBold mb-8 text-center">
-        Continent of Legend
+        Continent of Legend XX
       </Text>
 
       {/* Insertamos la Molécula limpia y lista */}

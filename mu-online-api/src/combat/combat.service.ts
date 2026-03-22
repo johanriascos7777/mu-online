@@ -7,6 +7,9 @@ import { CombatSession } from './combat.entity';
 import { CharactersService } from '../characters/characters.service';
 import { MapsService } from '../maps/maps.service';
 import { Monster } from '../monsters/entities/monster.entity';
+// ── FIX: importamos las clases hijas para poder clonar el monstruo ──
+import { BudgeDragon } from '../monsters/entities/budge-dragon.entity';
+import { Goblin } from '../monsters/entities/goblin.entity';
 
 @Injectable()
 export class CombatService {
@@ -42,8 +45,14 @@ export class CombatService {
             );
         }
 
+        // ── FIX: usamos cloneMonster para que cada combate tenga su
+        // propio HP sin afectar el registro original de la DB.
+        // Antes pasábamos 'monster' directo → todos los combates
+        // compartían el mismo HP y se corrompían entre sí.
+        const monsterClone = this.cloneMonster(monster);
+
         // CombatSession guarda monsterCurrentHp separado del monster template
-        const combat = new CombatSession(character, monster, mapName);
+        const combat = new CombatSession(character, monsterClone, mapName);
         const saved  = await this.combatRepo.save(combat);
 
         return {
@@ -83,5 +92,17 @@ export class CombatService {
         if (!combat) throw new NotFoundException(`Combat '${combatId}' not found`);
         if (!combat.isActive()) throw new BadRequestException(`Combat is already ${combat.getStatus()}`);
         return combat;
+    }
+
+    // ── FIX: nombre real de la DB = 'Budge Dragon' con espacio ──────
+    // El seed guarda el nombre como 'Budge Dragon' (con espacio).
+    // Antes el switch usaba 'BudgeDragon' (sin espacio) → nunca matcheaba
+    // → siempre retornaba not found porque buscaba el nombre incorrecto.
+    private cloneMonster(monster: Monster): Monster {
+        switch (monster.name) {
+            case 'Budge Dragon': return new BudgeDragon(); // ← con espacio
+            case 'Goblin':       return new Goblin();
+            default:             return new BudgeDragon();
+        }
     }
 }

@@ -89,15 +89,19 @@ export class MapsService {
         return map.getRandomMonster();
     }
 
+    // ── FIX: nombre real de la DB = 'Budge Dragon' con espacio ──────
+    // El seed de BudgeDragon guarda el nombre como 'Budge Dragon'.
+    // Antes usábamos 'BudgeDragon' (sin espacio) → el monsterRepo.findOne
+    // no encontraba nada → 404 en startCombat.
     getRandomMonster(mapId: string): object {
         const monstersPerMap: Record<string, string[]> = {
-            lorencia: ['BudgeDragon', 'Goblin'],
+            lorencia: ['Budge Dragon', 'Goblin'], // ← con espacio
             dungeon:  ['Skeleton', 'Ghost'],
             devias:   ['IceMonster', 'Yeti'],
             noria:    ['ForestMonster', 'EliteYeti'],
             atlans:   ['Bahamut', 'Vepar'],
         };
-        const monsters = monstersPerMap[mapId.toLowerCase()] ?? ['BudgeDragon'];
+        const monsters = monstersPerMap[mapId.toLowerCase()] ?? ['Budge Dragon'];
         const random   = monsters[Math.floor(Math.random() * monsters.length)];
         return { monster: { name: random } };
     }
