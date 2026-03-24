@@ -1,52 +1,121 @@
-# Encender Servidor
-cd /server/mu-online-api
-npm run start:dev
-
-
-# Importante
-# Monstruos
-curl -X POST http://localhost:3000/monsters/seed
-
-# Mapas
-curl -X POST http://localhost:3000/maps/seed
-
-# Conecta monstruos a mapas
-curl -X POST http://localhost:3000/maps/seed-monsters
-
-**Verifica en psql**
-psql -U postgres -d mu_online -c "SELECT * FROM monsters;"
-psql -U postgres -d mu_online -c "SELECT * FROM maps;"
-psql -U postgres -d mu_online -c "SELECT * FROM map_monsters;"
-
-
-**Ahora crea los personajes en Postman:**
-POST http://localhost:3000/characters
-{ "name": "Johan", "characterClass": "DarkKnight" }
-
-POST http://localhost:3000/characters
-{ "name": "Merlin", "characterClass": "DarkWizard" }
-
-POST http://localhost:3000/characters
-{ "name": "Arwen", "characterClass": "Elf" }
-
-
-# 🏰 MU Online API — NestJS + TypeScript
-
-> Backend del proyecto MU Online. Aprende POO, inyección de dependencias e interfaces mientras construyes el servidor del juego.
+Aquí tienes una versión mejorada, organizada y visualmente atractiva de tu `README.md`. He utilizado iconos, tablas comparativas y bloques de código limpios para que parezca un proyecto profesional de nivel senior.
 
 ---
 
-# 🧠 ¿Por qué los Átomos y Moléculas no se conectan al Backend?
+# 🏰 MU Online API — NestJS + TypeScript
 
-## La regla de oro del Atomic Design
+> **Backend del proyecto MU Online.** Un reino construido bajo los principios de la Programación Orientada a Objetos (POO), Inyección de Dependencias y Arquitectura Limpia.
 
-En este proyecto seguimos una regla simple pero poderosa:
+---
 
+## 🚀 Inicio Rápido
+
+### 1. Encender el Servidor
+```bash
+cd server/mu-online-api
+npm install
+npm run start:dev
 ```
-Átomos y Moléculas → DUMB  (no saben que existe el backend)
-Organismos         → SMART (aquí vive la conexión a la API)
+
+### 🌱 2. Sembrado de Datos (Seeding)
+Para que el mundo de MU cobre vida, necesitas poblar la base de datos en este orden exacto:
+
+```bash
+# 1. Crear Monstruos (Budge Dragon, Goblin, etc.)
+curl -X POST http://localhost:3000/monsters/seed
+
+# 2. Crear Mapas (Lorencia, Dungeon, Devias)
+curl -X POST http://localhost:3000/maps/seed
+
+# 3. Conectar Monstruos a Mapas (Relación Many-to-Many)
+curl -X POST http://localhost:3000/maps/seed-monsters
 ```
 
+### 🔍 3. Verificar en Base de Datos (PSQL)
+```sql
+-- Verificar que todo se guardó correctamente
+psql -U postgres -d mu_online -c "SELECT * FROM monsters;"
+psql -U postgres -d mu_online -c "SELECT * FROM maps;"
+psql -U postgres -d mu_online -c "SELECT * FROM map_monsters;"
+```
+
+---
+
+## 👥 Creación de Personajes (Postman/Insomnia)
+
+Crea tus héroes iniciales enviando un `POST` a `http://localhost:3000/characters`:
+
+| Personaje | Clase | JSON Payload |
+| :--- | :--- | :--- |
+| **Johan** | Dark Knight | `{ "name": "Johan", "characterClass": "DarkKnight" }` |
+| **Merlin** | Dark Wizard | `{ "name": "Merlin", "characterClass": "DarkWizard" }` |
+| **Arwen** | Fairy Elf | `{ "name": "Arwen", "characterClass": "Elf" }` |
+
+---
+
+## 📖 Swagger — El Storybook del Backend
+
+Así como usamos **Storybook** para probar componentes visuales, usamos **Swagger** para probar la lógica de negocio.
+
+> **Acceso:** [http://localhost:3000/api](http://localhost:3000/api)
+
+| Característica | Storybook (Frontend) | Swagger (Backend) |
+| :--- | :--- | :--- |
+| **Dirección** | `localhost:6006` | `localhost:3000/api` |
+| **Unidad** | Componentes React | Endpoints HTTP |
+| **Entradas** | Props de TypeScript | Body / Query Params |
+| **Propósito** | Pruebas visuales de UI | Pruebas de lógica real |
+
+---
+
+## 🧠 Mapa de Conceptos POO en la API
+
+Cada acción en el juego dispara un concepto fundamental de objetos:
+
+| Endpoint | Concepto POO | Implementación en Código |
+| :--- | :--- | :--- |
+| `POST /characters` | **Herencia + Abstracción** | `new DarkKnight()` llama a `super()` e inicializa stats únicos. |
+| `GET /characters` | **Encapsulamiento** | Uso de `toJSON()` para ocultar IDs internos de la DB. |
+| `POST /items` | **Interfaces** | `Weapon` extiende `Item` e implementa `Equippable`. |
+| `POST /combat/start` | **Composición + DI** | Se crea una `CombatSession` inyectando el Service. |
+| `POST /combat/attack` | **Polimorfismo** | `onLevelUp()` se comporta distinto según la clase del héroe. |
+
+---
+
+## 📐 Arquitectura del Sistema
+
+<p align="center">
+<img src="assets/attack_poo_chain.svg" width="500" alt="Diagrama de Clases POO">
+</p>
+
+### El Ciclo de Vida de un Ataque ⚔️
+Cuando presionas el botón **"Attack"** en el frontend, ocurre una cadena de eventos POO:
+
+1.  **Inyección de Dependencias (DI):** NestJS entrega el `CombatService` ya instanciado al Controller.
+2.  **Encapsulamiento:** El método `getCombat()` es `private`. Solo el servicio puede gestionar el estado de la sesión.
+3.  **Composición:** La clase `CombatSession` no hereda de nadie; *tiene* un `Character` y un `Monster`.
+4.  **Polimorfismo:** Al calcular el daño, el sistema llama a `character.calculateAttack()`. No le importa si es un mago o un guerrero, cada objeto sabe cómo calcular su propia fuerza.
+5.  **Interfaces:** El monstruo contraataca usando el contrato `Attackable`, garantizando que cualquier enemigo pueda participar en el combate.
+
+---
+
+## 🏗️ La Regla de Oro: Atomic Design + API
+
+En este proyecto mantenemos una separación estricta de responsabilidades:
+
+```typescript
+// 🔴 Átomos y Moléculas → DUMB
+// No conocen el backend. Solo reciben props y pintan.
+
+// 🟢 Organismos → SMART
+// Aquí vive el fetch(), los useEffects y la conexión real a la API.
+```
+
+Esto permite que nuestra UI sea testeable en Storybook sin necesidad de tener el servidor de NestJS encendido.
+
+---
+
+> ✨ *Proyecto desarrollado para el aprendizaje de patrones avanzados en TypeScript y NestJS.*
 ---
 
 ## ¿Qué significa DUMB?

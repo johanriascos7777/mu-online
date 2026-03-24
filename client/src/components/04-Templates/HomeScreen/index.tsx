@@ -23,6 +23,18 @@ import { LevelBadge }          from '../../01-atoms/LevelBadge';
 import type { MapFromAPI }       from '../../03-organisms/MapSelector';
 import type { CharacterFromAPI } from '../../03-organisms/CharacterList';
 
+// ── NUEVO: IMPORTS AGREGADOS para HelpBadge y POOModal ──────────────
+import { HelpBadge }  from '../../01-atoms/HelpBadge';
+import { POOModal }   from '../../02-molecules/POOModal';
+import { usePOOModal } from '../../../hooks/usePOOModal';
+import {
+  HOME_CONCEPTS,
+  CREATE_CHARACTER_CONCEPTS,
+  START_COMBAT_CONCEPTS,
+  ATTACK_CONCEPTS,
+} from '../../../data/poo-concepts';
+// ────────────────────────────────────────────────────────────────────
+
 export interface HomeScreenProps {
   apiUrl?: string;
 }
@@ -56,11 +68,15 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
   const [selectedMap,   setSelectedMap]   = useState<MapFromAPI | null>(null);
   const [selectedChar,  setSelectedChar]  = useState<CharacterFromAPI | null>(null);
   const [combat,        setCombat]        = useState<CombatState | null>(null);
-  const [combatLoading, setCombatLoading] = useState(false);
+  const[combatLoading, setCombatLoading] = useState(false);
   const [acting,        setActing]        = useState(false);
   const [charHp,        setCharHp]        = useState('');
-  const [charMp,        setCharMp]        = useState('');
+  const[charMp,        setCharMp]        = useState('');
   const [monsterHp,     setMonsterHp]     = useState('');
+
+  // ── NUEVO: Inicialización del Hook para el modal POO ─────────────
+  const { modal, openModal, closeModal } = usePOOModal();
+  // ─────────────────────────────────────────────────────────────────
 
   // ── Inicia combate al elegir mapa + personaje ─────────────
   useEffect(() => {
@@ -85,7 +101,7 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
         setCombatLoading(false);
       })
       .catch(() => setCombatLoading(false));
-  }, [selectedMap, selectedChar]);
+  },[selectedMap, selectedChar]);
 
   async function handleAttack() {
     if (!combat || acting || combat.status !== 'Active') return;
@@ -152,6 +168,21 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
           }}>
             Object Oriented Realm — NestJS & TypeScript
           </Text>
+
+          {/* ── NUEVO: PARCHE 1 — Fila con descripción + HelpBadge en Header ── */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 }}>
+            <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 8, letterSpacing: 3, color: '#4a5568' }}>
+              ¿CÓMO FUNCIONA?
+            </Text>
+            <HelpBadge
+              size="md"
+              variant="gold"
+              onPress={() => openModal(HOME_CONCEPTS, 'Conceptos POO en este proyecto')}
+              label="Ver todos los conceptos POO"
+            />
+          </View>
+          {/* ──────────────────────────────────────────────────────────────── */}
+
           {/* Línea decorativa */}
           <View style={{
             width: '60%', height: 1,
@@ -183,6 +214,23 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
 
         {/* ══ CHARACTER CARDS — grid 3 columnas ══ */}
         <View style={{ marginTop: 16 }}>
+          {/* ── NUEVO: PARCHE 2 — Sección CHOOSE YOUR CHARACTER con HelpBadge ── */}
+          <View style={{ flexDirection:'row', alignItems:'center', gap:16, marginBottom:16, paddingHorizontal: 16 }}>
+            <View style={{ flex:1, height:1, backgroundColor:'rgba(201,168,76,0.2)' }} />
+            <Text style={{ fontFamily:'Cinzel_400Regular', fontSize:9, letterSpacing:5, color:'#c9a84c' }}>
+              CHOOSE YOUR CHARACTER
+            </Text>
+            <HelpBadge
+              onPress={() => openModal(
+                CREATE_CHARACTER_CONCEPTS,
+                'Al crear un personaje...'
+              )}
+              label="POO: Herencia al crear personajes"
+            />
+            <View style={{ flex:1, height:1, backgroundColor:'rgba(201,168,76,0.2)' }} />
+          </View>
+          {/* ───────────────────────────────────────────────────────────────── */}
+
           <CharacterList
             apiUrl={apiUrl}
             activeCharacter={selectedChar?.name}
@@ -203,6 +251,17 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
               <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 9, letterSpacing: 5, color: '#c9a84c' }}>
                 ⚔ COMBAT ARENA
               </Text>
+              
+              {/* ── NUEVO: PARCHE 3 — HelpBadge en Combat Arena ── */}
+              <HelpBadge
+                onPress={() => openModal(
+                  START_COMBAT_CONCEPTS,
+                  'Al iniciar combate...'
+                )}
+                label="POO: Composición en CombatSession"
+              />
+              {/* ──────────────────────────────────────────────── */}
+              
               <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(201,168,76,0.2)' }} />
             </View>
 
@@ -333,11 +392,32 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
 
                 {/* Botones de acción */}
                 {!isOver && (
-                  <View style={{ flexDirection: 'row', marginTop: 16, gap: 8 }}>
-                    <ActionBtn icon="⚔️" label="Attack"         cost={acting ? '...' : 'Basic'} variant="attack" onPress={handleAttack} />
-                    <ActionBtn icon="🌪️" label="Twisting Slash" cost="30 MP"   variant="skill"  onPress={handleAttack} />
-                    <ActionBtn icon="🗡️" label="Impale"         cost="50 MP"   variant="skill"  onPress={handleAttack} />
-                    <ActionBtn icon="🏃" label="Flee"           cost="Escape"  variant="heal"   onPress={handleFlee} />
+                  <View style={{ marginTop: 16 }}>
+                    {/* ── NUEVO: PARCHE 4 — Línea de explicación + badge en botones Attack ── */}
+                    <View style={{
+                      flexDirection:'row', alignItems:'center',
+                      paddingBottom:8, gap:8
+                    }}>
+                      <Text style={{ fontFamily:'Cinzel_400Regular', fontSize:8, color:'#4a5568', letterSpacing:2 }}>
+                        ACCIONES DE COMBATE
+                      </Text>
+                      <HelpBadge
+                        variant="combat"
+                        onPress={() => openModal(
+                          ATTACK_CONCEPTS,
+                          'Al presionar Attack...'
+                        )}
+                        label="POO: Polimorfismo al atacar"
+                      />
+                    </View>
+                    {/* ──────────────────────────────────────────────────────────────────── */}
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <ActionBtn icon="⚔️" label="Attack"         cost={acting ? '...' : 'Basic'} variant="attack" onPress={handleAttack} />
+                      <ActionBtn icon="🌪️" label="Twisting Slash" cost="30 MP"   variant="skill"  onPress={handleAttack} />
+                      <ActionBtn icon="🗡️" label="Impale"         cost="50 MP"   variant="skill"  onPress={handleAttack} />
+                      <ActionBtn icon="🏃" label="Flee"           cost="Escape"  variant="heal"   onPress={handleFlee} />
+                    </View>
                   </View>
                 )}
               </>
@@ -360,6 +440,15 @@ export function HomeScreen({ apiUrl = 'http://localhost:3000' }: HomeScreenProps
         </Text>
 
       </ScrollView>
+
+      {/* ── NUEVO: PARCHE 5 — POOModal al final del JSX ── */}
+      <POOModal
+        visible={modal.visible}
+        concepts={modal.concepts}
+        title={modal.title}
+        onClose={closeModal}
+      />
+      {/* ─────────────────────────────────────────────── */}
     </SafeAreaView>
   );
 }

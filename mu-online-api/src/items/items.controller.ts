@@ -19,9 +19,11 @@
 
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { ItemsService } from './items.service';
+import { ApiTags, ApiOperation, ApiBody, ApiParam } from '@nestjs/swagger';
 
 // @Controller('items') define la ruta base: /items
 // Todos los métodos dentro tendrán rutas relativas a /items
+@ApiTags('🗡️ Items — Herencia + Interfaces (Equippable)')
 @Controller('items')
 export class ItemsController {
 
@@ -41,10 +43,31 @@ export class ItemsController {
    * @Body() extrae el JSON del request y lo convierte a objeto JS.
    * Ejemplo body: { "type": "BroadSword", "level": 3, "rarity": "Ancient" }
    */
-  @Post()
+@Post()
+  @ApiOperation({
+    summary: 'Crea un item',
+    description:
+      '🧬 POO: Herencia\n\n' +
+      'Item (abstract) → Weapon / Armor / Ring\n' +
+      'Cada uno implementa Equippable (interfaz) e initializeStats() de forma diferente.',
+  })
+  @ApiBody({
+    schema: {
+      example: { type: 'BroadSword', level: 3, rarity: 'ANCIENT' },
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['BroadSword','ElvenBow','WizardStaff','PlateArmor','LeatherArmor','WizardRobe','RingOfFire','RingOfHpRegen'],
+        },
+        level:  { type: 'number', example: 3 },
+        rarity: { type: 'string', enum: ['NORMAL','MAGIC','ANCIENT','EXCELLENT'], example: 'ANCIENT' },
+      },
+    },
+  })
   create(@Body() body: { type: string; level?: number; rarity?: string }) {
     return this.itemsService.createItem(body.type, body.level, body.rarity);
   }
+
 
   // ── GET /items ──────────────────────────────────────────
   @Get()
