@@ -10,6 +10,7 @@ import { Monster } from '../monsters/entities/monster.entity';
 // ── FIX: importamos las clases hijas para poder clonar el monstruo ──
 import { BudgeDragon } from '../monsters/entities/budge-dragon.entity';
 import { Goblin } from '../monsters/entities/goblin.entity';
+import { AncientDragon } from '../monsters/entities/ancient-dragon.entity'; // ← ESTE FALTA
 
 @Injectable()
 export class CombatService {
@@ -102,6 +103,7 @@ export class CombatService {
         switch (monster.name) {
             case 'Budge Dragon': return new BudgeDragon(); // ← con espacio
             case 'Goblin':       return new Goblin();
+            case 'Ancient Dragon': return new AncientDragon();
             default:             return new BudgeDragon();
         }
     }

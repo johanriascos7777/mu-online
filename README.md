@@ -2,6 +2,34 @@
 cd /server/mu-online-api
 npm run start:dev
 
+
+# Importante
+# Monstruos
+curl -X POST http://localhost:3000/monsters/seed
+
+# Mapas
+curl -X POST http://localhost:3000/maps/seed
+
+# Conecta monstruos a mapas
+curl -X POST http://localhost:3000/maps/seed-monsters
+
+**Verifica en psql**
+psql -U postgres -d mu_online -c "SELECT * FROM monsters;"
+psql -U postgres -d mu_online -c "SELECT * FROM maps;"
+psql -U postgres -d mu_online -c "SELECT * FROM map_monsters;"
+
+
+**Ahora crea los personajes en Postman:**
+POST http://localhost:3000/characters
+{ "name": "Johan", "characterClass": "DarkKnight" }
+
+POST http://localhost:3000/characters
+{ "name": "Merlin", "characterClass": "DarkWizard" }
+
+POST http://localhost:3000/characters
+{ "name": "Arwen", "characterClass": "Elf" }
+
+
 # 🏰 MU Online API — NestJS + TypeScript
 
 > Backend del proyecto MU Online. Aprende POO, inyección de dependencias e interfaces mientras construyes el servidor del juego.

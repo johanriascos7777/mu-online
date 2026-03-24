@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Monster } from './entities/monster.entity';
 import { BudgeDragon } from './entities/budge-dragon.entity';
 import { Goblin } from './entities/goblin.entity';
+import { AncientDragon } from './entities/ancient-dragon.entity';
 
 @Injectable()
 export class MonstersService {
@@ -30,6 +31,7 @@ export class MonstersService {
         const monsters = [
             new BudgeDragon(),
             new Goblin(),
+            new AncientDragon(), // ← Boss
         ];
 
         await this.monsterRepo.save(monsters);

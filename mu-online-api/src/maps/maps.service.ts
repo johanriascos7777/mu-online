@@ -95,7 +95,7 @@ export class MapsService {
     // no encontraba nada → 404 en startCombat.
     getRandomMonster(mapId: string): object {
         const monstersPerMap: Record<string, string[]> = {
-            lorencia: ['Budge Dragon', 'Goblin'], // ← con espacio
+            lorencia: ['Budge Dragon', 'Goblin', 'Ancient Dragon'], // ← con espacio
             dungeon:  ['Skeleton', 'Ghost'],
             devias:   ['IceMonster', 'Yeti'],
             noria:    ['ForestMonster', 'EliteYeti'],

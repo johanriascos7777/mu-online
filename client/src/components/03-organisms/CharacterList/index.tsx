@@ -84,7 +84,7 @@ export function CharacterList({
   // ── Estado: cargando ─────────────────────────────────────────
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#050508', padding: 40 }}>
+      <View style={{ alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <ActivityIndicator size="large" color="#c9a84c" />
         <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 3, color: '#c9a84c', marginTop: 16 }}>
           LOADING CHARACTERS...
@@ -96,12 +96,12 @@ export function CharacterList({
   // ── Estado: error ────────────────────────────────────────────
   if (error) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#050508', padding: 40 }}>
+      <View style={{ alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <Text style={{ fontSize: 32, marginBottom: 12 }}>⚠️</Text>
         <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, color: '#c0392b', textAlign: 'center' }}>
           {error}
         </Text>
-        <Text style={{ fontFamily: 'Crimson Pro', fontSize: 12, color: '#4a5568', marginTop: 8, textAlign: 'center' }}>
+        <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#4a5568', marginTop: 8, textAlign: 'center' }}>
           Asegúrate que el backend está corriendo:{'\n'}npm run start:dev
         </Text>
       </View>
@@ -111,25 +111,27 @@ export function CharacterList({
   // ── Estado: sin personajes ───────────────────────────────────
   if (characters.length === 0) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#050508', padding: 40 }}>
+      <View style={{ alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 3, color: '#4a5568' }}>
           NO CHARACTERS FOUND
         </Text>
-        <Text style={{ fontFamily: 'Crimson Pro', fontSize: 12, color: '#4a5568', marginTop: 8 }}>
+        <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#4a5568', marginTop: 8 }}>
           POST /characters para crear uno
         </Text>
       </View>
     );
   }
 
-  // ── Estado: lista de personajes ──────────────────────────────
+  // ── Estado: grid de personajes ───────────────────────────────
+  // ── FIX: grid de 3 columnas como el diseño HTML ──────────────
+  // Antes era ScrollView vertical con una card por fila.
+  // Ahora es un View con flexDirection:'row' + flexWrap:'wrap'
+  // para que las 3 cards queden en una fila como en el mockup.
   return (
-    <ScrollView
-      style={{ backgroundColor: '#050508' }}
-      contentContainerStyle={{ padding: 16, gap: 16 }}
-    >
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+
       {/* Título de sección */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(201,168,76,0.2)' }} />
         <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 9, letterSpacing: 5, color: '#c9a84c' }}>
           CHOOSE YOUR CHARACTER
@@ -137,38 +139,44 @@ export function CharacterList({
         <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(201,168,76,0.2)' }} />
       </View>
 
-      {/* Cards — una por personaje del backend */}
-      {characters.map(character => (
-        <CharacterCard
-          key={character.id}
-          name={character.name}
-          characterClass={character.class}
-          level={character.level}
-          isActive={character.name === activeCharacter}
+      {/* Grid 3 columnas — igual que el HTML */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+        {characters.map(character => (
+          <View
+            key={character.id}
+            style={{ flex: 1, minWidth: 260 }}
+          >
+            <CharacterCard
+              name={character.name}
+              characterClass={character.class}
+              level={character.level}
+              isActive={character.name === activeCharacter}
 
-          // Parser: '155/155' → { current: 155, max: 155 }
-          hp={parseStat(character.stats.hp)}
-          mp={parseStat(character.stats.mp)}
+              // Parser: '155/155' → { current: 155, max: 155 }
+              hp={parseStat(character.stats.hp)}
+              mp={parseStat(character.stats.mp)}
 
-          // EXP: calculamos % basado en level
-          exp={{
-            current:  character.experience,
-            max:      Math.floor(Math.pow(character.level, 2) * 1000),
-          }}
+              // EXP: calculamos % basado en level
+              exp={{
+                current: character.experience,
+                max:     Math.floor(Math.pow(character.level, 2) * 1000),
+              }}
 
-          stats={{
-            strength: character.stats.strength,
-            agility:  character.stats.agility,
-            vitality: character.stats.vitality,
-            energy:   character.stats.energy,
-          }}
+              stats={{
+                strength: character.stats.strength,
+                agility:  character.stats.agility,
+                vitality: character.stats.vitality,
+                energy:   character.stats.energy,
+              }}
 
-          // Skills estáticas por clase hasta que el backend las retorne
-          skills={SKILLS_BY_CLASS[character.class] ?? []}
+              // Skills estáticas por clase hasta que el backend las retorne
+              skills={SKILLS_BY_CLASS[character.class] ?? []}
 
-          onPress={() => onSelectCharacter?.(character)}
-        />
-      ))}
-    </ScrollView>
+              onPress={() => onSelectCharacter?.(character)}
+            />
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
