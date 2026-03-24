@@ -459,5 +459,173 @@ POST /combat/:id/skill
   → El monstruo contraataca
 ```
 
+---
+
+## 🗺️ Mu Academy — Quest Log (reconstrucción en `mu-academy`)
+
+Las Quests siguientes son la guía para reconstruir el proyecto en una carpeta nueva. El código del repositorio **mu-online** (este museo) solo recibe comentarios de arqueología; la implementación “mejorada” o distinta va en **mu-academy** cuando indique cada Quest.
+
+---
+
+### Quest 01 — «Los pergaminos de Lorencia» · Lección 1
+
+**🧠 Lo que vas a descubrir:**
+
+Vas a entender cómo el servidor “recuerda” a un Goblin y a un Budge Dragon en la **misma tabla** sin mezclar sus identidades: una columna discriminadora (`type`) + clases hijas que rellenan stats. Es la misma magia que en MU: un solo “sistema de mobs”, muchas criaturas distintas.
+
+**🌍 Por qué esto existe en el proyecto:**
+
+En el proyecto original, `mu-online-api/src/monsters/entities/monster.entity.ts` define la clase abstracta `Monster` con `@Entity('monsters')`, `@TableInheritance({ column: { type: 'varchar', name: 'type' } })`, columnas comunes (`name`, `level`, `health`, …) y `implements Attackable`. Los hijos `mu-online-api/src/monsters/entities/goblin.entity.ts` y `budge-dragon.entity.ts` usan `@ChildEntity('Goblin'|'BudgeDragon')` y `extends Monster` con `initializeStats()` distinto. Resuelve el problema de **no duplicar** tablas ni columnas para cada mob y de poder listar/consultar todos los enemigos con un solo repositorio TypeORM.
+
+**🛠️ Scaffolding inicial:**
+
+Backend (`mu-academy-api`):
+
+```bash
+# Crear el proyecto NestJS (elige npm cuando pregunte)
+npx @nestjs/cli@latest new mu-academy-api
+cd mu-academy-api
+
+# TypeORM + driver PostgreSQL
+npm install @nestjs/typeorm typeorm pg
+
+# Variables de entorno: crea .env (no commitees secretos reales) con al menos:
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_USERNAME=postgres
+# DB_PASSWORD=tu_password
+# DB_DATABASE=mu_academy
+```
+
+En `src/app.module.ts` importa `TypeOrmModule.forRoot({ type: 'postgres', host: process.env.DB_HOST, port: +process.env.DB_PORT, username: process.env.DB_USERNAME, password: process.env.DB_PASSWORD, database: process.env.DB_DATABASE, autoLoadEntities: true, synchronize: true })` (solo `synchronize: true` en desarrollo; en producción usa migraciones).
+
+Crea PostgreSQL y la base `mu_academy`. Verifica que `npm run start:dev` arranca sin error de conexión.
+
+Frontend (`mu-academy-ui`):
+
+```bash
+npm create vite@latest mu-academy-ui -- --template react-ts
+cd mu-academy-ui
+npm install
+
+# Storybook (sigue el asistente; para React + Vite acepta defaults razonables)
+npx storybook@latest init
+
+npm run storybook
+# Debe abrir http://localhost:6006
+```
+
+**⚔️ Pasos de construcción (en orden estricto):**
+
+Paso 1 — Carpeta `monsters` y módulo Nest
+
+- **QUÉ HACER:** `nest g module monsters` y `nest g service monsters` (controller opcional en Lección 1 si aún no expones API; si generas `nest g controller monsters`, déjalo mínimo). Registra `MonstersModule` en `AppModule`.
+- **POR QUÉ:** Aísla todo lo de monstruos como en el original (`mu-online-api/src/monsters/monsters.module.ts`).
+- **REFERENCIA:** `mu-online-api/src/monsters/monsters.module.ts`
+- **CÓDIGO BASE:** `MonstersModule` importa `TypeOrmModule.forFeature([Monster, Goblin, BudgeDragon])` cuando las entidades existan.
+
+Paso 2 — Contrato `Attackable` (o copia mínima para compilar Monster)
+
+- **QUÉ HACER:** Crea `src/characters/interfaces/attackable.interface.ts` (o `src/common/interfaces` si prefieres, pero entonces ajusta imports) con los métodos que `Monster` necesite para `implements Attackable` en el original: revisa `mu-online-api/src/characters/interfaces/attackable.interface.ts` y replica la firma mínima.
+- **POR QUÉ:** `Monster` del museo implementa ese contrato para que combate trate “atacantes” de forma uniforme.
+- **REFERENCIA:** `mu-online-api/src/characters/interfaces/attackable.interface.ts`
+- **CÓDIGO BASE:** `export interface Attackable { ... }` con los mismos métodos públicos que usa `Monster`.
+
+Paso 3 — Entidad base `Monster` (tabla + herencia STI)
+
+- **QUÉ HACER:** Archivo `src/monsters/entities/monster.entity.ts`: `export enum MonsterType { NORMAL, ELITE, BOSS }`, `@Entity('monsters')`, `@TableInheritance({ column: { type: 'varchar', name: 'type' } })`, `export abstract class Monster implements Attackable` con columnas equivalentes al original (`id`, `name`, `level`, `monsterType` enum, `map`, `health`, `maxHealth`, `attackMin`, `attackMax`, `defense`, `experienceReward`), constructor opcional como en el museo, `protected abstract initializeStats()`, métodos `attack`, `getAttackPower`, `takeDamage`, getters, `toJSON`.
+- **POR QUÉ:** Es el núcleo de Lección 1: POO (abstracta + hijos) + TypeORM (una tabla, discriminador).
+- **REFERENCIA:** `mu-online-api/src/monsters/entities/monster.entity.ts`
+- **CÓDIGO BASE:** Esqueleto: clase abstracta + `@PrimaryGeneratedColumn()` + `@Column()` en campos + firmas de métodos; implementa cuerpos como en el museo línea por línea mientras aprendes.
+
+Paso 4 — Hijos `Goblin` y `BudgeDragon`
+
+- **QUÉ HACER:** `goblin.entity.ts` y `budge-dragon.entity.ts` con `@ChildEntity('Goblin')` / `@ChildEntity('BudgeDragon')`, `extends Monster`, `constructor` que llama `super(...)` con nombre/nivel/map/tipo, `initializeStats()` con números distintos (copia valores del museo para comparar).
+- **POR QUÉ:** TypeORM escribe en columna `type` el string del ChildEntity y al leer instancia la subclase correcta.
+- **REFERENCIA:** `mu-online-api/src/monsters/entities/goblin.entity.ts`, `budge-dragon.entity.ts`
+- **CÓDIGO BASE:** `export class Goblin extends Monster { ... }` con `super('Goblin', 5, 'Lorencia', MonsterType.NORMAL)` (ajusta si tu mundo usa otros números).
+
+Paso 5 — Registrar entidades en TypeORM
+
+- **QUÉ HACER:** En `TypeOrmModule.forRoot`, usa `entities: [Monster, Goblin, BudgeDragon]` o `autoLoadEntities: true` con entidades registradas en `forFeature`. Arranca la app y comprueba en PostgreSQL que existe tabla `monsters` con columna `type` y filas al insertar desde código o seed posterior.
+- **POR QUÉ:** Sin registrar entidades, Nest no mapea clases a tablas.
+- **REFERENCIA:** `mu-online-api/src/app.module.ts` (patrón de entidades)
+- **CÓDIGO BASE:** `TypeOrmModule.forFeature([Monster, Goblin, BudgeDragon])` dentro de `MonstersModule`.
+
+Paso 6 — Primer componente React `MonsterCard` + Storybook
+
+- **QUÉ HACER:** En `mu-academy-ui`, crea `src/components/MonsterCard/MonsterCard.tsx` que reciba props tipadas (`name`, `level`, `map`, `hp` como string o `{ current, max }`, `attackRange`, `defense`, `monsterKind: 'Goblin' | 'BudgeDragon'` o string). Sin fetch: componente **presentacional**. Añade `MonsterCard.stories.tsx` con al menos dos historias: “Goblin en Lorencia” y “Budge Dragon en Lorencia” con datos mock que imiten `toJSON()` del backend.
+- **POR QUÉ:** Entrenas el vínculo mental “shape del JSON del servidor → props del UI” antes de conectar HTTP (Lección 2+).
+- **REFERENCIA:** Nombres alineados con `toJSON()` en `mu-online-api/src/monsters/entities/monster.entity.ts`
+- **CÓDIGO BASE:**
+
+```tsx
+export type MonsterCardProps = { name: string; level: number; map: string; hp: string; attack: string; defense: number; expReward: number };
+export function MonsterCard(props: MonsterCardProps) { return (/* maquetación */); }
+```
+
+**📐 Diagramas a crear/actualizar en esta lección:**
+
+En el README de **mu-academy** (no en este repo si no quieres mezclar), mantén diagramas acumulativos.
+
+- **DIAGRAMA 1 — Clases e herencia (Mermaid classDiagram):** `Monster` abstracta, `implements Attackable`, `Goblin` y `BudgeDragon` con `extends`, método abstracto `initializeStats`, métodos concretos compartidos `attack`, `takeDamage`. Ejemplo de sintaxis:
+
+```mermaid
+classDiagram
+  class Attackable {
+    <<interface>>
+  }
+  class Monster {
+    <<abstract>>
+    +id: number
+    +name: string
+    +initializeStats()* void
+    +attack(targetName: string) string
+    +takeDamage(damage: number) object
+  }
+  class Goblin
+  class BudgeDragon
+  Attackable <|.. Monster
+  Monster <|-- Goblin
+  Monster <|-- BudgeDragon
+```
+
+- **DIAGRAMA 2 — Base de datos (Mermaid erDiagram):** Tabla `monsters` con columnas `id`, `type` (discriminador STI), `name`, `level`, `monsterType`, `map`, `health`, `maxHealth`, `attackMin`, `attackMax`, `defense`, `experienceReward`. Sin FKs extra en Lección 1 salvo que ya hayas añadido mapas (si no, omitir relaciones).
+
+- **DIAGRAMA 3 — Módulos NestJS (Mermaid graph TD):** `AppModule` → `MonstersModule` → `TypeOrmModule` / `MonstersService` (y `MonstersController` si existe).
+
+- **DIAGRAMA 4 — Componentes React (Mermaid graph TD):** `MonsterCard` ← `MonsterCard.stories` (mock props). Sin router aún si no lo necesitas.
+
+**🚨 Trampas comunes del novato:**
+
+- Confundir la columna **`type`** (discriminador STI: `Goblin`, `BudgeDragon`) con la propiedad **`monsterType`** (enum Normal/Elite/Boss): son dos conceptos distintos en el museo.
+- Olvidar registrar **las tres** clases en TypeORM: solo `Monster` sin hijos provoca errores al persistir `@ChildEntity`.
+- `synchronize: true` en producción: puede borrar datos; úsalo solo en dev en mu-academy.
+- Storybook: componente con `fetch` interno rompe historias sin MSW; en Lección 1 mantén `MonsterCard` tonto (solo props).
+
+**📋 Documentación obligatoria antes de cerrar la Quest:**
+
+- [ ] Backend: si ya tienes endpoints, documenta con `@ApiOperation` y `@ApiResponse`; abre Swagger en `http://localhost:3000/api` (puerto por defecto Nest) y verifica. Si aún no hay controller en Lección 1, deja este ítem para cuando expongas `GET /monsters`.
+- [ ] Frontend: `MonsterCard.stories.tsx` en Storybook; comprueba `http://localhost:6006`.
+- [ ] README de mu-academy: diagramas 1–4 actualizados.
+
+**✅ Criterio de "Misión Cumplida y Explicada":**
+
+- [ ] Explicas `@TableInheritance` y señalas la línea equivalente en tu `monster.entity.ts` de mu-academy.
+- [ ] Explicas qué pasa si borras `@ChildEntity` en un hijo o cambias el string `'Goblin'` sin actualizar datos.
+- [ ] Das una analogía MU propia (no copiada del DM) entre STI y algo que veas en el juego (sprites, stats, spawns).
+- [ ] Pegas o enlazas el diagrama Mermaid actualizado de tu README de mu-academy.
+
+**🔍 Checkpoint de auto-verificación:**
+
+Abre `mu-academy-api/src/monsters/entities/monster.entity.ts`. Debes ver `abstract class Monster`, `@TableInheritance` con columna `type`, y enum `MonsterType`. Compara con `mu-online-api/src/monsters/entities/monster.entity.ts` en este repositorio. En PostgreSQL, `\d monsters` debe listar columna `type` y las columnas de stats.
+
+**🔍 Diferencias con mu-academy (notas del arqueólogo):**
+
+- El README de inicio rápido más arriba menciona rutas como `cd server/mu-online-api`; en tu clon real la API puede vivir en `mu-online-api/`. En mu-academy usa **tus** rutas consistentes y documenta en tu propio README.
+- Si en mu-academy colocas `Attackable` en otra carpeta que el museo, está bien siempre que imports y módulos reflejen **tu** estructura y el contrato sea equivalente.
+
+---
+
 
 
